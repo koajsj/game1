@@ -507,8 +507,8 @@
         vx: 0,
         vy: 0,
         radius: 18,
-        aimX: 0,
-        aimY: 0,
+        aimDx: 0,
+        aimDy: -1,
       };
 
       const corePalette = [
@@ -745,10 +745,10 @@
           ship.y = world.h * 0.66;
           ship.vx = 0;
           ship.vy = 0;
+          ship.aimDx = 0;
+          ship.aimDy = -1;
           input.targetX = ship.x;
           input.targetY = ship.y;
-          ship.aimX = ship.x;
-          ship.aimY = ship.y - 100;
         } else {
           ship.x = clamp(ship.x, 24, world.w - 24);
           ship.y = clamp(ship.y, 24, world.h - 24);
@@ -801,6 +801,8 @@
         state.fireHeld = false;
         ship.vx = 0;
         ship.vy = 0;
+        ship.aimDx = 0;
+        ship.aimDy = -1;
         world.particles.length = 0;
         world.bullets.length = 0;
         world.meteors.length = 0;
@@ -808,8 +810,6 @@
         world.powerups.length = 0;
         world.rings.length = 0;
         world.boss = null;
-        ship.aimX = world.w * 0.5;
-        ship.aimY = world.h * 0.66 - 100;
         overlay.classList.remove('hidden');
         setOverlay(
           'MISSION BRIEF',
@@ -996,8 +996,8 @@
       }
 
       function shootBullet() {
-        const dx = ship.aimX - ship.x;
-        const dy = ship.aimY - ship.y;
+        const dx = ship.aimDx;
+        const dy = ship.aimDy;
         const len = Math.hypot(dx, dy) || 1;
         const speed = 9.5 + (state.boost > 0 ? 2.5 : 0);
         world.bullets.push({
@@ -1115,6 +1115,8 @@
           const accel = 14;
           const targetVx = (ax / len) * maxSpeed;
           const targetVy = (ay / len) * maxSpeed;
+          ship.aimDx = ax / len;
+          ship.aimDy = ay / len;
           ship.vx += (targetVx - ship.vx) * clamp(accel * dt, 0, 1);
           ship.vy += (targetVy - ship.vy) * clamp(accel * dt, 0, 1);
           ship.x += ship.vx * dt;
@@ -1183,8 +1185,6 @@
 
         updateStage();
         updateBuffTimers(dt);
-        ship.aimX = input.targetX;
-        ship.aimY = input.targetY;
         state.fireTimer = Math.max(0, state.fireTimer - dt);
         if (state.fireHeld && state.fireTimer <= 0) {
           shootBullet();
@@ -1709,8 +1709,11 @@
         const rect = canvas.getBoundingClientRect();
         input.targetX = clientX - rect.left;
         input.targetY = clientY - rect.top;
-        ship.aimX = input.targetX;
-        ship.aimY = input.targetY;
+        const dx = input.targetX - ship.x;
+        const dy = input.targetY - ship.y;
+        const len = Math.hypot(dx, dy) || 1;
+        ship.aimDx = dx / len;
+        ship.aimDy = dy / len;
         input.pointerActive = true;
       }
 
