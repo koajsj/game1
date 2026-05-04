@@ -1,18 +1,27 @@
-# Star Ring: Neon Surge
+# 星环冲刺：霓虹风暴
 
-A single-page Canvas game. Open `index.html` directly in a browser to play.
+这是一个单页 Canvas 小游戏，直接用浏览器打开 `index.html` 就能玩。
 
-## Controls
+## 版本说明
 
-- Mouse move / touch drag: steer the ship
-- `WASD` / arrow keys: keyboard movement
-- `P`: pause or resume
-- `R`: restart
+当前版本记录见 [RELEASE.md](RELEASE.md)。
 
-## Gameplay
+## 操作方式
 
-- Collect green cores for points
-- Pick up powerups for shield, magnet, slow, and score boost effects
-- Stages increase automatically as your score rises
-- Background music and sound effects are generated in the browser
-- The game ends when lives reach zero
+- 鼠标移动 / 触摸拖动：控制飞船
+- `WASD` / 方向键：键盘移动
+- `P`：暂停或继续
+- `R`：重新开始
+
+## 玩法说明
+
+- 收集绿色星核得分
+- 拾取道具后可获得护盾、磁铁、减速、加分等效果
+- 分数上升后会自动进入更高阶段
+- 背景音乐和音效均为浏览器内生成
+- 生命耗尽后游戏结束
+
+## 当前状态
+
+- Git 分支：`main`
+- 仓库远端：`https://github.com/koajsj/game1.git`
