@@ -374,7 +374,7 @@
           <span class="buff" id="buffBoost">Boost: 0</span>
         </div>
         <div class="guide">
-          <div>规则：绿色核心可碰可加分；红色石头、蓝色敌机会掉血。</div>
+          <div>规则：绿色核心可碰撞加分；红色石头、蓝色敌机会扣血。</div>
           <div>技能：按 `Q` 触发脉冲清障，清除附近石头与敌机（8 秒冷却）。</div>
           <div class="danger-hl">高亮提示：危险靠近时会出现“DANGER”闪烁提示。</div>
         </div>
@@ -401,9 +401,9 @@
       <p class="subtitle" id="overlayText">点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。</p>
       <p class="summary" id="overlaySummary">Best score: 0 | Stage: 1 | Cores collected: 0</p>
       <div class="mode-row" id="modeRow">
-        <button class="secondary mode-btn active" data-mode="easy">Easy</button>
+        <button class="secondary mode-btn" data-mode="easy">Easy</button>
         <button class="secondary mode-btn active" data-mode="normal">Normal</button>
-        <button class="secondary mode-btn active" data-mode="hard">Hard</button>
+        <button class="secondary mode-btn" data-mode="hard">Hard</button>
       </div>
       <div class="buttons">
         <button id="startBtn">Start Game</button>
@@ -637,7 +637,7 @@
         if (!state.running) {
           setOverlay(
             'MISSION BRIEF',
-            '点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。',
+            'Start the ship, collect cores, dodge hazards, and use powerups to survive longer.',
             `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${mode.toUpperCase()}`
           );
         }
@@ -834,7 +834,7 @@
         overlay.classList.remove('hidden');
         setOverlay(
           'MISSION BRIEF',
-          '点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。',
+          'Start the ship, collect cores, dodge hazards, and use powerups to survive longer.',
           `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${settings.mode.toUpperCase()}`
         );
         startBtn.textContent = 'Start Game';
