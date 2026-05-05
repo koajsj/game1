@@ -102,6 +102,18 @@
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
+    .guide {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #cde2ff;
+      display: grid;
+      gap: 4px;
+    }
+    .danger-hl {
+      color: #ffd66a;
+      font-weight: 700;
+    }
 
     .stats {
       display: grid;
@@ -354,12 +366,17 @@
     <div class="topbar">
       <div class="brand card">
         <h1>Star Ring: Neon Surge</h1>
-        <p>Guide the ship through an evolving starfield. Collect cores, trigger powerups, and survive each stage as the tempo rises.</p>
+        <p>驾驶宇宙飞船穿越星域，收集核心得分，躲避危险物并活到更高关卡。</p>
         <div class="buffs" id="buffs">
           <span class="buff" id="buffShield">Shield: 0</span>
           <span class="buff" id="buffMagnet">Magnet: 0</span>
           <span class="buff" id="buffSlow">Slow: 0</span>
           <span class="buff" id="buffBoost">Boost: 0</span>
+        </div>
+        <div class="guide">
+          <div>规则：绿色核心可碰可加分；红色石头、蓝色敌机会掉血。</div>
+          <div>技能：按 `Q` 触发脉冲清障，清除附近石头与敌机（8 秒冷却）。</div>
+          <div class="danger-hl">高亮提示：危险靠近时会出现“DANGER”闪烁提示。</div>
         </div>
       </div>
       <div class="stats card" aria-live="polite">
@@ -381,7 +398,7 @@
 
     <div class="center card" id="overlay">
       <h2 class="title" id="overlayTitle">MISSION BRIEF</h2>
-      <p class="subtitle" id="overlayText">Press start to launch. Collect green cores for points, pick up powerups for temporary advantages, and avoid meteor impacts. Every stage increases the pressure and the music intensity.</p>
+      <p class="subtitle" id="overlayText">点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。</p>
       <p class="summary" id="overlaySummary">Best score: 0 | Stage: 1 | Cores collected: 0</p>
       <div class="mode-row" id="modeRow">
         <button class="secondary mode-btn active" data-mode="easy">Easy</button>
@@ -394,7 +411,7 @@
       </div>
     </div>
 
-    <div class="footer-tip">Controls: mouse move / touch drag / arrow keys or WASD. Press P to pause, R to restart.</div>
+    <div class="footer-tip">控制：鼠标/触摸拖动飞船，或 WASD / 方向键移动。P 暂停，R 重开，Q 脉冲清障。</div>
   </div>
 
   <div class="mobile-controls">
@@ -471,6 +488,8 @@
         shotsFired: 0,
         bossSpawnCooldown: 0,
         fireHeld: false,
+        pulseCooldown: 0,
+        dangerBlink: 0,
       };
 
       const settings = {
@@ -618,7 +637,7 @@
         if (!state.running) {
           setOverlay(
             'MISSION BRIEF',
-            'Press start to launch. Collect green cores for points, pick up powerups for temporary advantages, and avoid meteor impacts. Every stage increases the pressure and the music intensity.',
+            '点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。',
             `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${mode.toUpperCase()}`
           );
         }
@@ -799,6 +818,8 @@
         state.bossSpawnCooldown = 0;
         state.fireTimer = 0;
         state.fireHeld = false;
+        state.pulseCooldown = 0;
+        state.dangerBlink = 0;
         ship.vx = 0;
         ship.vy = 0;
         ship.aimDx = 0;
@@ -813,7 +834,7 @@
         overlay.classList.remove('hidden');
         setOverlay(
           'MISSION BRIEF',
-          'Press start to launch. Collect green cores for points, pick up powerups for temporary advantages, and avoid meteor impacts. Every stage increases the pressure and the music intensity.',
+          '点击开始后，驾驶宇宙飞船移动并收集核心。石头和敌机会造成伤害，道具与技能可短暂提升生存能力。',
           `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${settings.mode.toUpperCase()}`
         );
         startBtn.textContent = 'Start Game';
@@ -837,6 +858,28 @@
         pauseBtn.textContent = 'Pause';
         overlay.classList.add('hidden');
         playEffect('start');
+      }
+
+      function triggerPulse() {
+        if (!state.running || state.paused || state.over || state.pulseCooldown > 0) return;
+        state.pulseCooldown = 8;
+        let cleared = 0;
+        for (let i = world.meteors.length - 1; i >= 0; i--) {
+          const meteor = world.meteors[i];
+          if (dist(ship.x, ship.y, meteor.x, meteor.y) < 210) {
+            world.meteors.splice(i, 1);
+            cleared += 1;
+          }
+        }
+        if (cleared > 0) {
+          state.scoreValue += cleared * 3;
+          state.score = Math.floor(state.scoreValue);
+        }
+        state.flash = 0.2;
+        state.shake = Math.max(state.shake, 8);
+        burst(ship.x, ship.y, 'rgba(121,215,255,1)', 22, 6.2);
+        addRing(ship.x, ship.y, 'rgba(121,215,255,1)');
+        playEffect('power');
       }
 
       function gameOver() {
@@ -1414,6 +1457,14 @@
         state.shake = Math.max(0, state.shake - dt * 20);
         state.flash = Math.max(0, state.flash - dt * 1.8);
         state.stageTransition = Math.max(0, state.stageTransition - dt);
+        state.pulseCooldown = Math.max(0, state.pulseCooldown - dt);
+        state.dangerBlink = Math.max(0, state.dangerBlink - dt);
+        for (const meteor of world.meteors) {
+          if (dist(ship.x, ship.y, meteor.x, meteor.y) < 130) {
+            state.dangerBlink = 0.25;
+            break;
+          }
+        }
         state.best = Math.max(state.best, state.score);
         updateHud();
         updateMusic(dt);
@@ -1600,6 +1651,9 @@
             ctx.lineTo(meteor.radius * 0.45, meteor.radius * 0.78);
             ctx.closePath();
             ctx.fill();
+            ctx.strokeStyle = 'rgba(120,220,255,0.95)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.8)';
             ctx.beginPath();
             ctx.arc(meteor.radius * 0.14, 0, Math.max(1.6, meteor.radius * 0.12), 0, Math.PI * 2);
@@ -1613,6 +1667,9 @@
             ctx.lineTo(-meteor.radius * 0.3, meteor.radius * 0.5);
             ctx.closePath();
             ctx.fill();
+            ctx.strokeStyle = 'rgba(255,130,130,0.95)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
             ctx.beginPath();
             ctx.arc(meteor.radius * 0.18, -meteor.radius * 0.04, Math.max(1.8, meteor.radius * 0.12), 0, Math.PI * 2);
@@ -1689,7 +1746,15 @@
           ctx.textAlign = 'center';
           ctx.fillStyle = 'rgba(255,255,255,0.68)';
           ctx.font = '600 18px Segoe UI, sans-serif';
-          ctx.fillText('Collect cores. Trigger powerups. Survive the surge.', world.w * 0.5, world.h * 0.88);
+          ctx.fillText('Collect cores. Trigger powerups. Pilot your spaceship to survive.', world.w * 0.5, world.h * 0.88);
+          ctx.restore();
+        }
+        if (state.dangerBlink > 0) {
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'rgba(255,105,120,0.95)';
+          ctx.font = '800 30px Segoe UI, sans-serif';
+          ctx.fillText('DANGER', world.w * 0.5, world.h * 0.22);
           ctx.restore();
         }
 
@@ -1757,6 +1822,9 @@
         if (event.key === 'r' || event.key === 'R') {
           resetGame();
           startGame();
+        }
+        if (event.key === 'q' || event.key === 'Q') {
+          triggerPulse();
         }
         if ((event.key === ' ' || event.key === 'Enter') && !state.running && !state.over) {
           startGame();
