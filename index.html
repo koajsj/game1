@@ -36,7 +36,7 @@
     #game {
       display: block;
       width: 100vw;
-      height: 100vh;
+      height: 100dvh;
       touch-action: none;
       cursor: crosshair;
     }
@@ -49,9 +49,9 @@
 
     .topbar {
       position: absolute;
-      top: 16px;
-      left: 16px;
-      right: 16px;
+      top: calc(12px + env(safe-area-inset-top));
+      left: calc(12px + env(safe-area-inset-left));
+      right: calc(12px + env(safe-area-inset-right));
       display: flex;
       gap: 12px;
       justify-content: space-between;
@@ -295,7 +295,7 @@
     .footer-tip {
       position: absolute;
       left: 50%;
-      bottom: 16px;
+      bottom: calc(14px + env(safe-area-inset-bottom));
       transform: translateX(-50%);
       padding: 10px 14px;
       border-radius: 999px;
@@ -310,9 +310,9 @@
 
     .mobile-controls {
       position: fixed;
-      right: 16px;
-      bottom: 76px;
-      display: flex;
+      right: calc(14px + env(safe-area-inset-right));
+      bottom: calc(76px + env(safe-area-inset-bottom));
+      display: none;
       flex-direction: column;
       gap: 12px;
       pointer-events: auto;
@@ -330,6 +330,76 @@
 
     .fire-btn:active {
       transform: scale(0.96);
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      .mobile-controls {
+        display: flex;
+      }
+
+      #game {
+        cursor: default;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        gap: 8px;
+      }
+
+      .brand {
+        padding: 12px 14px;
+      }
+
+      .brand h1 {
+        margin-bottom: 4px;
+        font-size: clamp(16px, 5vw, 22px);
+      }
+
+      .brand p {
+        font-size: 12px;
+      }
+
+      .guide {
+        font-size: 11px;
+      }
+
+      .stats {
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .stat {
+        padding: 8px 10px;
+      }
+
+      .stat .value {
+        font-size: 17px;
+      }
+
+      .boss {
+        top: calc(138px + env(safe-area-inset-top));
+      }
+
+      .center {
+        width: min(95vw, 620px);
+        padding: 18px 14px;
+        gap: 12px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .summary {
+        font-size: 12px;
+      }
+
+      .mode-btn {
+        min-width: 82px;
+        padding: 9px 10px;
+      }
     }
 
     @media (max-width: 720px) {
@@ -355,7 +425,29 @@
       }
 
       .mobile-controls {
-        bottom: 88px;
+        bottom: calc(92px + env(safe-area-inset-bottom));
+      }
+
+      .boss {
+        top: calc(220px + env(safe-area-inset-top));
+      }
+
+      .fire-btn {
+        width: 82px;
+        height: 82px;
+        font-size: 15px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .brand {
+        max-height: 34vh;
+        overflow: auto;
+      }
+
+      .footer-tip {
+        font-size: 11px;
+        padding: 8px 10px;
       }
     }
   </style>
@@ -751,8 +843,8 @@
 
       function resize() {
         world.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
-        world.w = window.innerWidth;
-        world.h = window.innerHeight;
+        world.w = Math.round(window.visualViewport?.width || window.innerWidth);
+        world.h = Math.round(window.visualViewport?.height || window.innerHeight);
         canvas.width = Math.floor(world.w * world.dpr);
         canvas.height = Math.floor(world.h * world.dpr);
         canvas.style.width = world.w + 'px';
@@ -1803,6 +1895,10 @@
         input.pointerActive = false;
       });
 
+      canvas.addEventListener('pointercancel', () => {
+        input.pointerActive = false;
+      });
+
       window.addEventListener('pointermove', (event) => {
         if (event.pointerType === 'mouse') {
           pointerToTarget(event.clientX, event.clientY);
@@ -1839,6 +1935,7 @@
       });
 
       window.addEventListener('resize', resize);
+      window.visualViewport?.addEventListener('resize', resize);
 
       fireBtn.addEventListener('pointerdown', (event) => {
         event.preventDefault();
@@ -1857,6 +1954,14 @@
       });
 
       fireBtn.addEventListener('pointerleave', () => {
+        state.fireHeld = false;
+      });
+
+      fireBtn.addEventListener('pointercancel', () => {
+        state.fireHeld = false;
+      });
+
+      window.addEventListener('pointerup', () => {
         state.fireHeld = false;
       });
 
