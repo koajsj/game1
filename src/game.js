@@ -64,8 +64,6 @@
     combo: 1,
     comboTimer: 0,
     stage: 1,
-    stageFlash: 0,
-    stageScoreBase: 0,
     stageTransition: 0,
     shield: 0,
     magnet: 0,
@@ -76,13 +74,10 @@
     powerTimer: 0,
     musicTimer: 0,
     fireTimer: 0,
-    introPulse: 0,
     shake: 0,
     flash: 0,
     time: 0,
     coresCollected: 0,
-    meteorsDodged: 0,
-    powerupsTaken: 0,
     shotsFired: 0,
     bossSpawnCooldown: 0,
     fireHeld: false,
@@ -496,8 +491,6 @@
     state.combo = 1;
     state.comboTimer = 0;
     state.stage = 1;
-    state.stageFlash = 0;
-    state.stageScoreBase = 0;
     state.stageTransition = 0;
     state.shield = 0;
     state.magnet = 0;
@@ -507,13 +500,10 @@
     state.spawnTimer = 0;
     state.powerTimer = 0;
     state.musicTimer = 0;
-    state.introPulse = 0;
     state.shake = 0;
     state.flash = 0;
     state.time = 0;
     state.coresCollected = 0;
-    state.meteorsDodged = 0;
-    state.powerupsTaken = 0;
     state.shotsFired = 0;
     state.bossSpawnCooldown = 0;
     state.fireTimer = 0;
@@ -775,7 +765,6 @@
       maxHealth: 30 + state.stage * 8,
       phase: 0,
       shotTimer: 1.2,
-      driftTimer: 0,
       shotCount: 0,
     };
     world.boss = boss;
@@ -879,7 +868,6 @@
   }
 
   function applyPowerup(type) {
-    state.powerupsTaken += 1;
     if (type === 'shield') {
       state.shieldHits = 1;
       state.shield = 12;
@@ -891,7 +879,6 @@
       state.boost = 8;
     }
     state.flash = Math.max(state.flash, 0.18);
-    state.stageFlash = Math.max(state.stageFlash, 1.2);
     burst(ship.x, ship.y, powerupDefs[type].glow, 18, 5.2);
     addRing(ship.x, ship.y, powerupDefs[type].glow);
     playEffect('power');
@@ -968,7 +955,6 @@
     if (state.shield <= 0) {
       state.shieldHits = 0;
     }
-    state.stageFlash = Math.max(0, state.stageFlash - dt);
   }
 
   function updateStage() {
@@ -976,7 +962,6 @@
     while (targetStage > state.stage) {
       state.stage += 1;
       state.stageTransition = 1.2;
-      state.stageFlash = 1.2;
       playEffect('level');
       burst(ship.x, ship.y, 'rgba(121,215,255,1)', 12, 4.8);
       if (
@@ -1012,7 +997,6 @@
       dt * ((2 + state.combo * 0.2 + (state.boost > 0 ? 1.0 : 0)) * modeConfig().scoreScale);
     state.score = Math.min(999999, Math.floor(state.scoreValue));
     state.best = Math.max(state.best, state.score);
-    state.introPulse += dt;
     state.comboTimer = Math.max(0, state.comboTimer - dt);
     if (state.comboTimer === 0) {
       state.combo = 1;
@@ -1314,7 +1298,6 @@
           state.shake = 14;
           state.hitStop = 0.04;
           state.hitVignette = 0.45;
-          state.meteorsDodged += 1;
           burst(ship.x, ship.y, 'rgba(255,140,155,1)', 24, 7);
           addRing(ship.x, ship.y, 'rgba(255,140,155,1)');
           playEffect('hit');
