@@ -121,10 +121,8 @@
     cores: [],
     powerups: [],
     zones: [],
-    rings: [],
     boss: null,
     particlePool: [],
-    ringPool: [],
     meteorPool: [],
     corePool: [],
     powerupPool: [],
@@ -555,7 +553,6 @@
     while (world.cores.length) world.corePool.push(world.cores.pop());
     while (world.powerups.length) world.powerupPool.push(world.powerups.pop());
     while (world.zones.length) world.zones.pop();
-    while (world.rings.length) world.ringPool.push(world.rings.pop());
     world.boss = null;
     overlay.classList.remove('hidden');
     setHomeButtonVisible(false);
@@ -690,16 +687,6 @@
     updateHud();
   }
 
-  function addRing(x, y, color) {
-    const ring = acquire(world.ringPool);
-    ring.x = x;
-    ring.y = y;
-    ring.radius = 6;
-    ring.alpha = 1;
-    ring.color = color;
-    world.rings.push(ring);
-  }
-
   function burst(x, y, color, count, speed) {
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -720,7 +707,6 @@
     state.flash = Math.max(state.flash, flash);
     state.shake = Math.max(state.shake, shake);
     burst(ship.x, ship.y, color, count, speed);
-    addRing(ship.x, ship.y, color);
     playEffect(effect);
   }
 
@@ -929,8 +915,6 @@
     const boss = world.boss;
     burst(boss.x, boss.y, 'rgba(255,214,106,1)', 48, 7.4);
     burst(boss.x, boss.y, 'rgba(121,215,255,1)', 24, 6.0);
-    addRing(boss.x, boss.y, 'rgba(255,214,106,1)');
-    addRing(boss.x, boss.y, 'rgba(121,215,255,1)');
     world.boss = null;
     state.bossSpawnCooldown = 12;
     addScore(70 + state.stage * 20);
@@ -1319,16 +1303,6 @@
       }
     }
 
-    for (let i = world.rings.length - 1; i >= 0; i--) {
-      const r = world.rings[i];
-      r.radius += 220 * dt;
-      r.alpha -= dt * 1.6;
-      if (r.alpha <= 0) {
-        world.rings.splice(i, 1);
-        world.ringPool.push(r);
-      }
-    }
-
     for (let i = world.cores.length - 1; i >= 0; i--) {
       const core = world.cores[i];
       if (dist(ship.x, ship.y, core.x, core.y) < ship.radius + core.radius) {
@@ -1344,7 +1318,6 @@
         state.flash = 0.2;
         state.shake = Math.min(8, state.shake + 2.5);
         burst(core.x, core.y, corePalette[core.tint].glow, 18, 5.5);
-        addRing(core.x, core.y, corePalette[core.tint].glow);
         playEffect('pickup');
       }
     }
@@ -1404,7 +1377,6 @@
         state.hitStop = 0.06;
         state.hitVignette = 0.55;
         burst(ship.x, ship.y, 'rgba(255,140,155,1)', 30, 7.4);
-        addRing(ship.x, ship.y, 'rgba(255,140,155,1)');
         playEffect('hit');
         if (state.lives <= 0) {
           gameOver();
@@ -1452,7 +1424,6 @@
           state.hitStop = 0.04;
           state.hitVignette = 0.45;
           burst(ship.x, ship.y, 'rgba(255,140,155,1)', 24, 7);
-          addRing(ship.x, ship.y, 'rgba(255,140,155,1)');
           playEffect('hit');
           if (state.lives <= 0) {
             gameOver();
@@ -1561,19 +1532,6 @@
     }
 
     drawBackground(time);
-
-    for (const ring of world.rings) {
-      ctx.save();
-      ctx.globalAlpha = ring.alpha;
-      ctx.strokeStyle = ring.color;
-      ctx.lineWidth = 6;
-      ctx.shadowColor = ring.color;
-      ctx.shadowBlur = 24;
-      ctx.beginPath();
-      ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     for (const zone of world.zones) {
       const def = zoneDefs[zone.kind];
