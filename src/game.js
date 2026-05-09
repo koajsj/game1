@@ -716,14 +716,7 @@
     }
   }
 
-  function emitShipFeedback({
-    color,
-    count,
-    speed,
-    flash = 0,
-    shake = 0,
-    effect = 'power',
-  }) {
+  function emitShipFeedback({ color, count, speed, flash = 0, shake = 0, effect = 'power' }) {
     state.flash = Math.max(state.flash, flash);
     state.shake = Math.max(state.shake, shake);
     burst(ship.x, ship.y, color, count, speed);
@@ -823,14 +816,13 @@
       kind: zoneKind,
       x,
       y,
-      radius: overrides.radius ?? (rand(68, 112) + state.stage * 1.8),
+      radius: overrides.radius ?? rand(68, 112) + state.stage * 1.8,
       life: overrides.life ?? rand(8.0, 13.0),
       pulse: Math.random() * Math.PI * 2,
       spin: overrides.spin ?? rand(-0.8, 0.8),
       driftX: overrides.driftX ?? rand(-18, 18),
       driftY: overrides.driftY ?? rand(-14, 14),
-      scoreBoost:
-        overrides.scoreBoost ?? (zoneKind === 'gravity' ? 1.55 : 1.25),
+      scoreBoost: overrides.scoreBoost ?? (zoneKind === 'gravity' ? 1.55 : 1.25),
     };
     world.zones.push(zone);
     return zone;
@@ -990,18 +982,13 @@
         boss.vy = Math.sin(dash) * 8;
         if (world.zones.length < 2) {
           const flank = dash + Math.PI * 0.5 * (Math.random() < 0.5 ? 1 : -1);
-          spawnZone(
-            'storm',
-            boss.x + Math.cos(flank) * 96,
-            boss.y + Math.sin(flank) * 96,
-            {
-              radius: rand(58, 82) + state.stage * 0.9,
-              life: rand(5.0, 7.0),
-              driftX: Math.cos(dash) * 12,
-              driftY: Math.sin(dash) * 12,
-              scoreBoost: 1.12,
-            }
-          );
+          spawnZone('storm', boss.x + Math.cos(flank) * 96, boss.y + Math.sin(flank) * 96, {
+            radius: rand(58, 82) + state.stage * 0.9,
+            life: rand(5.0, 7.0),
+            driftX: Math.cos(dash) * 12,
+            driftY: Math.sin(dash) * 12,
+            scoreBoost: 1.12,
+          });
         }
         state.shake = Math.max(state.shake, 8);
       }
@@ -1148,7 +1135,8 @@
     state.time += dt;
     state.scoreValue = Math.min(
       999999,
-      state.scoreValue + dt * ((2 + state.combo * 0.2 + (state.boost > 0 ? 1.0 : 0)) * modeConfig().scoreScale)
+      state.scoreValue +
+        dt * ((2 + state.combo * 0.2 + (state.boost > 0 ? 1.0 : 0)) * modeConfig().scoreScale)
     );
     syncScore();
     state.visualTime += dt;
