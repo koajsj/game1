@@ -51,7 +51,3 @@ npm install
 - `npm run test:e2e`
 
 已添加 GitHub Actions CI：push/PR 自动执行格式检查、lint、Playwright 冒烟测试。
-
-## 版本记录
-
-详见 [RELEASE.md](RELEASE.md)
