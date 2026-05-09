@@ -1589,62 +1589,76 @@
 
     ctx.save();
     ctx.translate(ship.x, ship.y);
-    const tilt = clamp((ship.vx || 0) / 220, -0.42, 0.42);
+    const tilt = clamp((ship.vx || 0) / 220, -0.32, 0.32);
     ctx.rotate(tilt);
-    const body = ctx.createLinearGradient(-24, -16, 24, 16);
-    body.addColorStop(0, '#83f3ff');
-    body.addColorStop(0.5, '#7bc2ff');
-    body.addColorStop(1, '#8cffc1');
-    ctx.shadowColor = 'rgba(120,220,255,0.8)';
-    ctx.shadowBlur = 26;
-    ctx.fillStyle = body;
+
+    const thrustPulse = 0.72 + Math.sin(performance.now() * 0.028) * 0.24;
+    ctx.shadowColor = 'rgba(255,170,90,0.7)';
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = `rgba(255,180,110,${0.78 * thrustPulse})`;
     ctx.beginPath();
-    ctx.moveTo(24, 0);
-    ctx.lineTo(7, -10);
-    ctx.lineTo(-14, -12);
-    ctx.lineTo(-21, 0);
-    ctx.lineTo(-14, 12);
-    ctx.lineTo(7, 10);
+    ctx.roundRect(-28, -7, 14, 5, 3);
+    ctx.roundRect(-28, 2, 14, 5, 3);
+    ctx.fill();
+
+    ctx.shadowColor = 'rgba(120,220,255,0.85)';
+    ctx.shadowBlur = 30;
+    const fuselage = ctx.createLinearGradient(-22, -14, 28, 14);
+    fuselage.addColorStop(0, '#7ce9ff');
+    fuselage.addColorStop(0.45, '#87b8ff');
+    fuselage.addColorStop(1, '#8cffc1');
+    ctx.fillStyle = fuselage;
+    ctx.beginPath();
+    ctx.roundRect(-18, -10, 34, 20, 8);
+    ctx.fill();
+
+    ctx.fillStyle = '#8fd8ff';
+    ctx.beginPath();
+    ctx.moveTo(14, 0);
+    ctx.lineTo(24, -4);
+    ctx.lineTo(24, 4);
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = 'rgba(120,220,255,0.8)';
+    ctx.fillStyle = 'rgba(110,200,255,0.9)';
     ctx.beginPath();
-    ctx.moveTo(-2, -12);
-    ctx.lineTo(-18, -20);
-    ctx.lineTo(-10, -6);
+    ctx.moveTo(-6, -10);
+    ctx.lineTo(-23, -19);
+    ctx.lineTo(-14, -7);
     ctx.closePath();
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(-2, 12);
-    ctx.lineTo(-18, 20);
-    ctx.lineTo(-10, 6);
+    ctx.moveTo(-6, 10);
+    ctx.lineTo(-23, 19);
+    ctx.lineTo(-14, 7);
     ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(90,175,255,0.88)';
+    ctx.beginPath();
+    ctx.roundRect(-16, -8, 6, 5, 2);
+    ctx.roundRect(-16, 3, 6, 5, 2);
     ctx.fill();
 
     ctx.shadowBlur = 0;
-    const cockpit = ctx.createRadialGradient(8, 0, 1, 8, 0, 7);
-    cockpit.addColorStop(0, 'rgba(255,255,255,0.98)');
-    cockpit.addColorStop(1, 'rgba(120,180,255,0.85)');
-    ctx.fillStyle = cockpit;
+    const canopy = ctx.createLinearGradient(0, -5, 13, 5);
+    canopy.addColorStop(0, 'rgba(255,255,255,0.95)');
+    canopy.addColorStop(1, 'rgba(120,180,255,0.8)');
+    ctx.fillStyle = canopy;
     ctx.beginPath();
-    ctx.ellipse(8, 0, 6.2, 4.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(7, 0, 7, 4.8, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    const thrustPulse = 0.6 + Math.sin(performance.now() * 0.03) * 0.25;
-    ctx.fillStyle = `rgba(255,180,120,${0.8 * thrustPulse})`;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(-21, -5);
-    ctx.lineTo(-30 - rand(0, 5), -1);
-    ctx.lineTo(-21, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(-21, 5);
-    ctx.lineTo(-30 - rand(0, 5), 1);
-    ctx.lineTo(-21, 0);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(-16, 0);
+    ctx.lineTo(16, 0);
+    ctx.moveTo(-2, -7);
+    ctx.lineTo(12, -7);
+    ctx.moveTo(-2, 7);
+    ctx.lineTo(12, 7);
+    ctx.stroke();
     ctx.restore();
 
     if (state.stageTransition > 0) {
