@@ -894,8 +894,8 @@
       health: 30 + state.stage * 8,
       maxHealth: 30 + state.stage * 8,
       phase: 0,
-      shotTimer: 1.2,
-      shotCount: 0,
+      attackTimer: 1.2,
+      attackCount: 0,
       cueTimer: 0,
       pendingAttack: -1,
     };
@@ -944,7 +944,7 @@
     if (boss.pendingAttack >= 0 && boss.cueTimer <= 0) {
       const phase = boss.pendingAttack;
       boss.pendingAttack = -1;
-      boss.shotTimer = Math.max(0.98, 2.1 - state.stage * 0.06);
+      boss.attackTimer = Math.max(0.98, 2.1 - state.stage * 0.06);
       if (phase === 0) {
         const burstCount = 4 + Math.min(4, Math.floor(state.stage / 3));
         for (let i = 0; i < burstCount; i++) {
@@ -981,10 +981,10 @@
       return;
     }
 
-    boss.shotTimer -= dt;
-    if (boss.shotTimer <= 0 && boss.pendingAttack < 0) {
-      boss.pendingAttack = boss.shotCount % 3;
-      boss.shotCount += 1;
+    boss.attackTimer -= dt;
+    if (boss.attackTimer <= 0 && boss.pendingAttack < 0) {
+      boss.pendingAttack = boss.attackCount % 3;
+      boss.attackCount += 1;
       boss.cueTimer = 0.6;
       state.shake = Math.max(state.shake, 3);
     }
