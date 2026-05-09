@@ -22,7 +22,8 @@ test('touch-only controls visibility follows media query', async ({ page, isMobi
   const display = await page.locator('#moveStick').evaluate((el) => getComputedStyle(el).display);
   if (isMobile) {
     expect(display).not.toBe('none');
-    await expect(page.locator('#fireBtn')).toBeVisible();
+    await expect(page.locator('#dashBtn')).toBeVisible();
+    await expect(page.locator('#pulseBtn')).toBeVisible();
   } else {
     expect(display).toBe('none');
   }

@@ -21,10 +21,11 @@
             <span class="buff" id="buffMagnet">Magnet: 0</span>
             <span class="buff" id="buffSlow">Slow: 0</span>
             <span class="buff" id="buffBoost">Boost: 0</span>
+            <span class="buff" id="buffDash">Dash: Ready</span>
           </div>
           <div class="guide">
             <div>规则：绿色核心可碰撞加分；红色陨石和蓝色敌机会造成伤害。</div>
-            <div>技能：按 <code>Q</code> 触发脉冲清障，清除附近陨石和敌机（8 秒冷却）。</div>
+            <div>技能：按 <code>Space</code> / <code>Shift</code> 闪避冲刺，按 <code>Q</code> 触发脉冲清障。</div>
             <div class="danger-hl">危险接近时会出现 "DANGER" 闪烁提醒。</div>
           </div>
         </div>
@@ -58,7 +59,7 @@
       <div class="center card" id="overlay">
         <h2 class="title" id="overlayTitle">MISSION BRIEF</h2>
         <p class="subtitle" id="overlayText">
-          点击开始后，驾驶飞船移动并收集核心。陨石和敌机会造成伤害，道具与技能可短暂提升生存能力。
+          点击开始后，驾驶飞船移动、闪避和清障。收集核心、穿越危险区并利用技能提升生存能力。
         </p>
         <p class="summary" id="overlaySummary">Best score: 0 | Stage: 1 | Cores collected: 0</p>
         <div class="mode-row" id="modeRow">
@@ -69,11 +70,12 @@
         <div class="buttons">
           <button id="startBtn">Start Game</button>
           <button class="secondary" id="pauseBtn" disabled>Pause</button>
+          <button class="secondary ui-hidden" id="homeBtn">返回主页</button>
         </div>
       </div>
 
       <div class="footer-tip">
-        控制：鼠标/触摸拖动飞船，或 WASD/方向键移动。P 暂停，R 重开，Q 清障。
+        控制：鼠标/触摸拖动飞船，或 WASD/方向键移动。Space/Shift 冲刺，Q 清障，P 暂停，R 重开。
       </div>
     </div>
 
@@ -83,11 +85,10 @@
         <div class="stick-base"></div>
         <div class="stick-knob" id="moveKnob"></div>
       </div>
-      <div class="stick-wrap" id="aimStick">
-        <div class="stick-base"></div>
-        <div class="stick-knob" id="aimKnob"></div>
+      <div class="action-stack">
+        <button class="dash-btn" id="dashBtn">DASH</button>
+        <button class="pulse-btn" id="pulseBtn">PULSE</button>
       </div>
-      <button class="fire-btn" id="fireBtn">FIRE</button>
     </div>
 
     <script src="./src/game.js"></script>

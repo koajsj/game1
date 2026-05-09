@@ -13,21 +13,22 @@
   const overlaySummary = document.getElementById('overlaySummary');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
+  const homeBtn = document.getElementById('homeBtn');
   const bossPanel = document.getElementById('bossPanel');
   const bossName = document.getElementById('bossName');
   const bossValue = document.getElementById('bossValue');
   const bossFill = document.getElementById('bossFill');
-  const fireBtn = document.getElementById('fireBtn');
   const perfPanel = document.getElementById('perfPanel');
   const moveStick = document.getElementById('moveStick');
   const moveKnob = document.getElementById('moveKnob');
-  const aimStick = document.getElementById('aimStick');
-  const aimKnob = document.getElementById('aimKnob');
+  const dashBtn = document.getElementById('dashBtn');
+  const pulseBtn = document.getElementById('pulseBtn');
   const modeButtons = Array.from(document.querySelectorAll('.mode-btn'));
   const buffShield = document.getElementById('buffShield');
   const buffMagnet = document.getElementById('buffMagnet');
   const buffSlow = document.getElementById('buffSlow');
   const buffBoost = document.getElementById('buffBoost');
+  const buffDash = document.getElementById('buffDash');
 
   const audio = {
     ctx: null,
@@ -41,7 +42,6 @@
   };
 
   const telemetry = {
-    shotsHit: 0,
     deathCause: 'none',
     runStartedAt: 0,
   };
@@ -49,7 +49,6 @@
   const meta = {
     coresBank: Number(localStorage.getItem('starRingCoresBank') || 0),
     lifeLevel: Number(localStorage.getItem('starRingLifeLevel') || 0),
-    fireLevel: Number(localStorage.getItem('starRingFireLevel') || 0),
     magnetLevel: Number(localStorage.getItem('starRingMagnetLevel') || 0),
   };
 
@@ -70,28 +69,29 @@
     slow: 0,
     boost: 0,
     shieldHits: 0,
+    dashCooldown: 0,
+    dashTime: 0,
     spawnTimer: 0,
     powerTimer: 0,
+    zoneTimer: 0,
     musicTimer: 0,
-    fireTimer: 0,
     shake: 0,
     flash: 0,
     time: 0,
     coresCollected: 0,
-    shotsFired: 0,
     bossSpawnCooldown: 0,
-    fireHeld: false,
     pulseCooldown: 0,
     dangerBlink: 0,
     hitStop: 0,
     hitVignette: 0,
+    visualTime: 0,
   };
 
   const settings = {
     mode: localStorage.getItem('starRingMode') || 'normal',
-    easy: { lives: 5, stageStep: 150, spawnScale: 0.82, bossStep: 4, scoreScale: 0.92 },
-    normal: { lives: 3, stageStep: 120, spawnScale: 1.0, bossStep: 3, scoreScale: 1.0 },
-    hard: { lives: 2, stageStep: 95, spawnScale: 1.18, bossStep: 2, scoreScale: 1.08 },
+    easy: { lives: 5, stageStep: 150, spawnScale: 0.82, bossStep: 6, scoreScale: 0.92 },
+    normal: { lives: 3, stageStep: 120, spawnScale: 1.0, bossStep: 5, scoreScale: 1.0 },
+    hard: { lives: 2, stageStep: 95, spawnScale: 1.18, bossStep: 4, scoreScale: 1.08 },
   };
 
   const input = {
@@ -101,10 +101,7 @@
     pointerActive: false,
     moveAxisX: 0,
     moveAxisY: 0,
-    aimAxisX: 0,
-    aimAxisY: -1,
     movePointerId: null,
-    aimPointerId: null,
   };
 
   const perf = {
@@ -120,15 +117,14 @@
     dpr: 1,
     stars: [],
     particles: [],
-    bullets: [],
     meteors: [],
     cores: [],
     powerups: [],
+    zones: [],
     rings: [],
     boss: null,
     particlePool: [],
     ringPool: [],
-    bulletPool: [],
     meteorPool: [],
     corePool: [],
     powerupPool: [],
@@ -140,8 +136,8 @@
     vx: 0,
     vy: 0,
     radius: 18,
-    aimDx: 0,
-    aimDy: -1,
+    faceDx: 0,
+    faceDy: -1,
   };
 
   const corePalette = [
@@ -156,6 +152,21 @@
     boost: { label: 'Boost', fill: '#ff8c9b', glow: 'rgba(255,140,155,0.92)' },
   };
 
+  const zoneDefs = {
+    gravity: {
+      label: 'Gravity Rift',
+      fill: 'rgba(121,215,255,0.16)',
+      glow: 'rgba(121,215,255,0.7)',
+      accent: 'rgba(121,215,255,0.95)',
+    },
+    storm: {
+      label: 'Storm Pocket',
+      fill: 'rgba(255,214,106,0.12)',
+      glow: 'rgba(255,214,106,0.7)',
+      accent: 'rgba(255,214,106,0.95)',
+    },
+  };
+
   const hudState = {
     score: null,
     best: null,
@@ -166,6 +177,7 @@
     magnet: null,
     slow: null,
     boost: null,
+    dash: null,
     bossText: null,
     bossWidth: null,
   };
@@ -184,23 +196,37 @@
     return Math.hypot(dx, dy);
   }
 
+  function syncScore() {
+    state.scoreValue = Math.min(999999, state.scoreValue);
+    state.score = Math.floor(state.scoreValue);
+    state.best = Math.max(state.best, state.score);
+  }
+
+  function addScore(points) {
+    state.scoreValue += points;
+    syncScore();
+  }
+
+  function setHomeButtonVisible(visible) {
+    homeBtn.classList.toggle('ui-hidden', !visible);
+    homeBtn.disabled = !visible;
+  }
+
   function saveMeta() {
     localStorage.setItem('starRingCoresBank', String(meta.coresBank));
     localStorage.setItem('starRingLifeLevel', String(meta.lifeLevel));
-    localStorage.setItem('starRingFireLevel', String(meta.fireLevel));
     localStorage.setItem('starRingMagnetLevel', String(meta.magnetLevel));
   }
 
   function applyMetaUpgrades() {
-    const spent = Math.max(0, meta.lifeLevel + meta.fireLevel + meta.magnetLevel);
+    const spent = Math.max(0, meta.lifeLevel + meta.magnetLevel);
     const baseLives = modeConfig().lives + Math.min(3, meta.lifeLevel);
     state.lives = baseLives;
-    state.fireTimer = Math.max(0.07, 0.16 - meta.fireLevel * 0.01);
     if (spent > 0) {
       setOverlay(
         'MISSION BRIEF',
-        'Spend collected cores to improve survivability and fire rate between runs.',
-        `Best: ${state.best} | Bank: ${meta.coresBank} | Upgrades L${meta.lifeLevel} F${meta.fireLevel} M${meta.magnetLevel}`
+        'Spend collected cores to improve survivability, dash uptime, and magnet strength between runs.',
+        `Best: ${state.best} | Bank: ${meta.coresBank} | Upgrades L${meta.lifeLevel} M${meta.magnetLevel}`
       );
     }
   }
@@ -232,6 +258,7 @@
     const magnetText = `Magnet: ${state.magnet > 0 ? state.magnet.toFixed(0) : '0'} (+${meta.magnetLevel})`;
     const slowText = `Slow: ${state.slow > 0 ? state.slow.toFixed(0) : '0'}`;
     const boostText = `Boost: ${state.boost > 0 ? state.boost.toFixed(0) : '0'}`;
+    const dashText = `Dash: ${state.dashCooldown > 0 ? state.dashCooldown.toFixed(1) : 'Ready'}`;
 
     if (hudState.score !== scoreText) {
       scoreEl.textContent = scoreText;
@@ -269,6 +296,10 @@
       buffBoost.textContent = boostText;
       hudState.boost = boostText;
     }
+    if (hudState.dash !== dashText) {
+      buffDash.textContent = dashText;
+      hudState.dash = dashText;
+    }
 
     if (world.boss) {
       const bossText = `${Math.max(0, Math.ceil(world.boss.health))} / ${world.boss.maxHealth}`;
@@ -290,10 +321,6 @@
       hudState.bossText = null;
       hudState.bossWidth = null;
     }
-  }
-
-  function fireInterval() {
-    return Math.max(0.07, (state.boost > 0 ? 0.1 : 0.16) - meta.fireLevel * 0.01);
   }
 
   function magnetRadius() {
@@ -328,7 +355,7 @@
     if (!state.running) {
       setOverlay(
         'MISSION BRIEF',
-        'Start the ship, collect cores, dodge hazards, and use powerups to survive longer.',
+        'Start the ship, collect cores, dodge hazards, dash through danger, and use powerups to survive longer.',
         `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${mode.toUpperCase()}`
       );
     }
@@ -459,8 +486,6 @@
       ship.y = world.h * 0.66;
       ship.vx = 0;
       ship.vy = 0;
-      ship.aimDx = 0;
-      ship.aimDy = -1;
       input.targetX = ship.x;
       input.targetY = ship.y;
     } else {
@@ -497,39 +522,46 @@
     state.slow = 0;
     state.boost = 0;
     state.shieldHits = 0;
+    state.dashCooldown = 0;
+    state.dashTime = 0;
     state.spawnTimer = 0;
     state.powerTimer = 0;
+    state.zoneTimer = rand(7.0, 10.0);
     state.musicTimer = 0;
     state.shake = 0;
     state.flash = 0;
     state.time = 0;
     state.coresCollected = 0;
-    state.shotsFired = 0;
     state.bossSpawnCooldown = 0;
-    state.fireTimer = 0;
-    state.fireHeld = false;
     state.pulseCooldown = 0;
     state.dangerBlink = 0;
     state.hitStop = 0;
     state.hitVignette = 0;
-    telemetry.shotsHit = 0;
+    state.visualTime = 0;
     telemetry.deathCause = 'none';
     telemetry.runStartedAt = performance.now();
+    input.pointerActive = false;
+    input.movePointerId = null;
+    input.moveAxisX = 0;
+    input.moveAxisY = 0;
+    input.targetX = 0;
+    input.targetY = 0;
     ship.vx = 0;
     ship.vy = 0;
-    ship.aimDx = 0;
-    ship.aimDy = -1;
+    ship.faceDx = 0;
+    ship.faceDy = -1;
     while (world.particles.length) world.particlePool.push(world.particles.pop());
-    while (world.bullets.length) world.bulletPool.push(world.bullets.pop());
     while (world.meteors.length) world.meteorPool.push(world.meteors.pop());
     while (world.cores.length) world.corePool.push(world.cores.pop());
     while (world.powerups.length) world.powerupPool.push(world.powerups.pop());
+    while (world.zones.length) world.zones.pop();
     while (world.rings.length) world.ringPool.push(world.rings.pop());
     world.boss = null;
     overlay.classList.remove('hidden');
+    setHomeButtonVisible(false);
     setOverlay(
       'MISSION BRIEF',
-      'Start the ship, collect cores, dodge hazards, and use powerups to survive longer.',
+      'Start the ship, collect cores, dodge hazards, dash through danger, and use powerups to survive longer.',
       `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${settings.mode.toUpperCase()}`
     );
     startBtn.textContent = 'Start Game';
@@ -556,13 +588,14 @@
     state.over = false;
     pauseBtn.disabled = false;
     pauseBtn.textContent = 'Pause';
+    setHomeButtonVisible(false);
     overlay.classList.add('hidden');
     playEffect('start');
   }
 
   function triggerPulse() {
     if (!state.running || state.paused || state.over || state.pulseCooldown > 0) return;
-    state.pulseCooldown = 8;
+    state.pulseCooldown = 6.8;
     let cleared = 0;
     for (let i = world.meteors.length - 1; i >= 0; i--) {
       const meteor = world.meteors[i];
@@ -572,23 +605,64 @@
         cleared += 1;
       }
     }
-    if (cleared > 0) {
-      state.scoreValue += cleared * 3;
-      state.score = Math.floor(state.scoreValue);
+    for (let i = world.zones.length - 1; i >= 0; i--) {
+      const zone = world.zones[i];
+      if (dist(ship.x, ship.y, zone.x, zone.y) < 230) {
+        world.zones.splice(i, 1);
+        cleared += 2;
+      }
     }
-    state.flash = 0.2;
-    state.shake = Math.max(state.shake, 8);
-    burst(ship.x, ship.y, 'rgba(121,215,255,1)', 22, 6.2);
-    addRing(ship.x, ship.y, 'rgba(121,215,255,1)');
-    playEffect('power');
+    if (cleared > 0) {
+      addScore(cleared * 2.6);
+    }
+    emitShipFeedback({
+      color: 'rgba(121,215,255,1)',
+      count: 22,
+      speed: 6.2,
+      flash: 0.2,
+      shake: 8,
+    });
+  }
+
+  function triggerDash() {
+    if (!state.running || state.paused || state.over || state.dashCooldown > 0) return;
+    const moveLen = Math.hypot(ship.vx, ship.vy);
+    let dirX = moveLen > 8 ? ship.vx / moveLen : input.moveAxisX;
+    let dirY = moveLen > 8 ? ship.vy / moveLen : input.moveAxisY;
+    const dirLen = Math.hypot(dirX, dirY) || 1;
+    dirX /= dirLen;
+    dirY /= dirLen;
+    if (Math.hypot(dirX, dirY) < 0.1) {
+      dirX = ship.faceDx || 0;
+      dirY = ship.faceDy || -1;
+    }
+    ship.vx = dirX * 920;
+    ship.vy = dirY * 920;
+    ship.faceDx = dirX;
+    ship.faceDy = dirY;
+    state.dashTime = 0.32;
+    state.dashCooldown = 0.9;
+    emitShipFeedback({
+      color: 'rgba(255,214,106,1)',
+      count: 14,
+      speed: 5.0,
+      flash: 0.12,
+      shake: 6,
+    });
   }
 
   function gameOver() {
     state.running = false;
     state.paused = false;
     state.over = true;
-    state.fireHeld = false;
-    state.best = Math.max(state.best, state.score);
+    state.dashTime = 0;
+    state.dashCooldown = 0;
+    state.pulseCooldown = 0;
+    state.shake = 0;
+    state.flash = 0;
+    state.hitVignette = 0;
+    state.dangerBlink = 0;
+    syncScore();
     localStorage.setItem('starRingBest', String(state.best));
     const runSeconds = Math.max(1, Math.floor((performance.now() - telemetry.runStartedAt) / 1000));
     const runBank = Math.floor(state.coresCollected * 0.8 + state.stage * 1.5 + runSeconds / 20);
@@ -597,10 +671,6 @@
       meta.coresBank -= 8;
       meta.lifeLevel += 1;
     }
-    while (meta.coresBank >= 10 && meta.fireLevel < 5) {
-      meta.coresBank -= 10;
-      meta.fireLevel += 1;
-    }
     while (meta.coresBank >= 12 && meta.magnetLevel < 5) {
       meta.coresBank -= 12;
       meta.magnetLevel += 1;
@@ -608,12 +678,11 @@
     saveMeta();
     world.boss = null;
     overlay.classList.remove('hidden');
-    const acc =
-      state.shotsFired > 0 ? Math.round((telemetry.shotsHit / state.shotsFired) * 100) : 0;
+    setHomeButtonVisible(true);
     setOverlay(
       'MISSION FAILED',
       'The ship was overwhelmed. Restart to try a different route through the field and beat the stage record.',
-      `Score: ${state.score} | Stage: ${state.stage} | Cores: +${runBank} (Bank ${meta.coresBank}) | ACC: ${acc}% | Cause: ${telemetry.deathCause}`
+      `Score: ${state.score} | Stage: ${state.stage} | Cores: +${runBank} (Bank ${meta.coresBank}) | Cause: ${telemetry.deathCause}`
     );
     startBtn.textContent = 'Restart';
     pauseBtn.disabled = true;
@@ -645,6 +714,21 @@
       p.color = color;
       world.particles.push(p);
     }
+  }
+
+  function emitShipFeedback({
+    color,
+    count,
+    speed,
+    flash = 0,
+    shake = 0,
+    effect = 'power',
+  }) {
+    state.flash = Math.max(state.flash, flash);
+    state.shake = Math.max(state.shake, shake);
+    burst(ship.x, ship.y, color, count, speed);
+    addRing(ship.x, ship.y, color);
+    playEffect(effect);
   }
 
   function spawnMeteor() {
@@ -716,6 +800,42 @@
     world.powerups.push(powerup);
   }
 
+  function spawnZone(kind = null, forcedX = null, forcedY = null, overrides = {}) {
+    if (world.zones.length >= 2) return;
+    const zoneKind = kind || (Math.random() < 0.6 ? 'gravity' : 'storm');
+    let x = forcedX ?? world.w * 0.5;
+    let y = forcedY ?? world.h * 0.5;
+    if (forcedX == null || forcedY == null) {
+      let tries = 0;
+      do {
+        x = rand(120, world.w - 120);
+        y = rand(120, world.h - 120);
+        tries += 1;
+      } while (
+        tries < 8 &&
+        (dist(x, y, ship.x, ship.y) < 220 ||
+          (world.boss && dist(x, y, world.boss.x, world.boss.y) < 260))
+      );
+    }
+    x = clamp(x, 120, world.w - 120);
+    y = clamp(y, 120, world.h - 120);
+    const zone = {
+      kind: zoneKind,
+      x,
+      y,
+      radius: overrides.radius ?? (rand(68, 112) + state.stage * 1.8),
+      life: overrides.life ?? rand(8.0, 13.0),
+      pulse: Math.random() * Math.PI * 2,
+      spin: overrides.spin ?? rand(-0.8, 0.8),
+      driftX: overrides.driftX ?? rand(-18, 18),
+      driftY: overrides.driftY ?? rand(-14, 14),
+      scoreBoost:
+        overrides.scoreBoost ?? (zoneKind === 'gravity' ? 1.55 : 1.25),
+    };
+    world.zones.push(zone);
+    return zone;
+  }
+
   function spawnDrone(x, y, angle = Math.random() * Math.PI * 2) {
     const speed = rand(2.2, 3.4) + state.stage * 0.08;
     const meteor = acquire(world.meteorPool);
@@ -732,6 +852,38 @@
     meteor.dashTimer = 0;
     meteor.orbitDir = 1;
     world.meteors.push(meteor);
+  }
+
+  function getZoneInfluence(x, y) {
+    let influence = null;
+    let bestDistance = Infinity;
+    for (const zone of world.zones) {
+      const dx = x - zone.x;
+      const dy = y - zone.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      if (distance < zone.radius && distance < bestDistance) {
+        bestDistance = distance;
+        influence = { zone, dx, dy, distance };
+      }
+    }
+    return influence;
+  }
+
+  function applyZonePush(entity, speed, dt) {
+    const influence = getZoneInfluence(entity.x, entity.y);
+    if (!influence) return null;
+    const { zone, dx, dy, distance } = influence;
+    const pull = 1 - distance / zone.radius;
+    const dirX = dx / distance;
+    const dirY = dy / distance;
+    if (zone.kind === 'gravity') {
+      entity.vx -= dirX * speed * pull * dt;
+      entity.vy -= dirY * speed * pull * dt;
+    } else {
+      entity.vx += (-dirY * speed * 0.18 + dirX * speed * 0.08) * pull * dt;
+      entity.vy += (dirX * speed * 0.18 + dirY * speed * 0.08) * pull * dt;
+    }
+    return influence;
   }
 
   function spawnBoss() {
@@ -766,6 +918,8 @@
       phase: 0,
       shotTimer: 1.2,
       shotCount: 0,
+      cueTimer: 0,
+      pendingAttack: -1,
     };
     world.boss = boss;
     bossPanel.classList.add('visible');
@@ -778,28 +932,6 @@
     playEffect('level');
   }
 
-  function shootBullet() {
-    const dx = ship.aimDx;
-    const dy = ship.aimDy;
-    const len = Math.hypot(dx, dy) || 1;
-    const baseAngle = Math.atan2(dy / len, dx / len);
-    const spread = state.boost > 0 ? 0.04 : 0.07;
-    const angle = baseAngle + rand(-spread, spread);
-    const speed = 9.5 + (state.boost > 0 ? 2.5 : 0);
-    const bullet = acquire(world.bulletPool);
-    bullet.x = ship.x + Math.cos(angle) * 22;
-    bullet.y = ship.y + Math.sin(angle) * 22;
-    bullet.vx = Math.cos(angle) * speed;
-    bullet.vy = Math.sin(angle) * speed;
-    bullet.radius = 3.5;
-    bullet.life = 1.2;
-    bullet.damage = 1;
-    world.bullets.push(bullet);
-    state.shotsFired += 1;
-    burst(ship.x, ship.y, 'rgba(121,215,255,1)', 3, 2.6);
-    playTone(920, 0.06, 'square', 0.03, 1240);
-  }
-
   function destroyBoss() {
     if (!world.boss) return;
     const boss = world.boss;
@@ -808,10 +940,8 @@
     addRing(boss.x, boss.y, 'rgba(255,214,106,1)');
     addRing(boss.x, boss.y, 'rgba(121,215,255,1)');
     world.boss = null;
-    state.bossSpawnCooldown = 14;
-    state.scoreValue += 90 + state.stage * 25;
-    state.score = Math.floor(state.scoreValue);
-    state.best = Math.max(state.best, state.score);
+    state.bossSpawnCooldown = 12;
+    addScore(70 + state.stage * 20);
     for (let i = 0; i < 4; i++) {
       spawnCore();
     }
@@ -827,16 +957,18 @@
 
     boss.phase += dt;
     boss.angle += boss.spin * 60 * dt;
-    boss.shotTimer -= dt;
-    boss.x += (ship.x - boss.x) * 0.018 * (1 + state.stage * 0.05) * 60 * dt;
-    boss.y += (ship.y - boss.y) * 0.018 * (1 + state.stage * 0.05) * 60 * dt;
+    boss.x += (ship.x - boss.x) * 0.012 * (1 + state.stage * 0.05) * 60 * dt;
+    boss.y += (ship.y - boss.y) * 0.012 * (1 + state.stage * 0.05) * 60 * dt;
     boss.x = clamp(boss.x, 70, world.w - 70);
     boss.y = clamp(boss.y, 70, world.h - 70);
 
-    if (boss.shotTimer <= 0) {
-      boss.shotTimer = Math.max(0.72, 1.8 - state.stage * 0.08);
-      boss.shotCount += 1;
-      const phase = boss.shotCount % 3;
+    if (boss.cueTimer > 0) {
+      boss.cueTimer = Math.max(0, boss.cueTimer - dt);
+    }
+    if (boss.pendingAttack >= 0 && boss.cueTimer <= 0) {
+      const phase = boss.pendingAttack;
+      boss.pendingAttack = -1;
+      boss.shotTimer = Math.max(0.98, 2.1 - state.stage * 0.06);
       if (phase === 0) {
         const burstCount = 4 + Math.min(4, Math.floor(state.stage / 3));
         for (let i = 0; i < burstCount; i++) {
@@ -856,11 +988,36 @@
         const dash = Math.atan2(ship.y - boss.y, ship.x - boss.x);
         boss.vx = Math.cos(dash) * 8;
         boss.vy = Math.sin(dash) * 8;
+        if (world.zones.length < 2) {
+          const flank = dash + Math.PI * 0.5 * (Math.random() < 0.5 ? 1 : -1);
+          spawnZone(
+            'storm',
+            boss.x + Math.cos(flank) * 96,
+            boss.y + Math.sin(flank) * 96,
+            {
+              radius: rand(58, 82) + state.stage * 0.9,
+              life: rand(5.0, 7.0),
+              driftX: Math.cos(dash) * 12,
+              driftY: Math.sin(dash) * 12,
+              scoreBoost: 1.12,
+            }
+          );
+        }
         state.shake = Math.max(state.shake, 8);
       }
       burst(boss.x, boss.y, 'rgba(255,140,155,1)', 16, 4.6);
       playEffect('level');
+      return;
     }
+
+    boss.shotTimer -= dt;
+    if (boss.shotTimer <= 0 && boss.pendingAttack < 0) {
+      boss.pendingAttack = boss.shotCount % 3;
+      boss.shotCount += 1;
+      boss.cueTimer = 0.6;
+      state.shake = Math.max(state.shake, 3);
+    }
+    applyZonePush(boss, 110, dt);
     boss.vx *= Math.pow(0.12, dt);
     boss.vy *= Math.pow(0.12, dt);
     boss.x += boss.vx;
@@ -878,10 +1035,12 @@
     } else if (type === 'boost') {
       state.boost = 8;
     }
-    state.flash = Math.max(state.flash, 0.18);
-    burst(ship.x, ship.y, powerupDefs[type].glow, 18, 5.2);
-    addRing(ship.x, ship.y, powerupDefs[type].glow);
-    playEffect('power');
+    emitShipFeedback({
+      color: powerupDefs[type].glow,
+      count: 18,
+      speed: 5.2,
+      flash: 0.18,
+    });
   }
 
   function setPaused(paused) {
@@ -912,12 +1071,6 @@
     if (input.keys.has('ArrowDown') || input.keys.has('s') || input.keys.has('S')) ay += 1;
     ax += input.moveAxisX;
     ay += input.moveAxisY;
-    const aimActive = Math.hypot(input.aimAxisX, input.aimAxisY) > 0.2;
-    if (aimActive) {
-      const aimLen = Math.hypot(input.aimAxisX, input.aimAxisY) || 1;
-      ship.aimDx = input.aimAxisX / aimLen;
-      ship.aimDy = input.aimAxisY / aimLen;
-    }
 
     if (ax !== 0 || ay !== 0) {
       const len = Math.hypot(ax, ay) || 1;
@@ -925,10 +1078,8 @@
       const accel = 14;
       const targetVx = (ax / len) * maxSpeed;
       const targetVy = (ay / len) * maxSpeed;
-      if (!aimActive) {
-        ship.aimDx = ax / len;
-        ship.aimDy = ay / len;
-      }
+      ship.faceDx = ax / len;
+      ship.faceDy = ay / len;
       ship.vx += (targetVx - ship.vx) * clamp(accel * dt, 0, 1);
       ship.vy += (targetVy - ship.vy) * clamp(accel * dt, 0, 1);
       ship.x += ship.vx * dt;
@@ -951,6 +1102,8 @@
     state.magnet = Math.max(0, state.magnet - dt);
     state.slow = Math.max(0, state.slow - dt);
     state.boost = Math.max(0, state.boost - dt);
+    state.dashCooldown = Math.max(0, state.dashCooldown - dt);
+    state.dashTime = Math.max(0, state.dashTime - dt);
     state.bossSpawnCooldown = Math.max(0, state.bossSpawnCooldown - dt);
     if (state.shield <= 0) {
       state.shieldHits = 0;
@@ -993,10 +1146,12 @@
     if (!state.running || state.paused) return;
 
     state.time += dt;
-    state.scoreValue +=
-      dt * ((2 + state.combo * 0.2 + (state.boost > 0 ? 1.0 : 0)) * modeConfig().scoreScale);
-    state.score = Math.min(999999, Math.floor(state.scoreValue));
-    state.best = Math.max(state.best, state.score);
+    state.scoreValue = Math.min(
+      999999,
+      state.scoreValue + dt * ((2 + state.combo * 0.2 + (state.boost > 0 ? 1.0 : 0)) * modeConfig().scoreScale)
+    );
+    syncScore();
+    state.visualTime += dt;
     state.comboTimer = Math.max(0, state.comboTimer - dt);
     if (state.comboTimer === 0) {
       state.combo = 1;
@@ -1004,11 +1159,6 @@
 
     updateStage();
     updateBuffTimers(dt);
-    state.fireTimer = Math.max(0, state.fireTimer - dt);
-    if (state.fireHeld && state.fireTimer <= 0) {
-      shootBullet();
-      state.fireTimer = fireInterval();
-    }
     if (world.boss) {
       updateBoss(dt);
     }
@@ -1022,6 +1172,40 @@
       ship.y += (input.targetY - ship.y) * (0.08 + follow * 0.92);
       ship.x = clamp(ship.x, 20, world.w - 20);
       ship.y = clamp(ship.y, 20, world.h - 20);
+    }
+
+    state.zoneTimer -= dt;
+    if (state.zoneTimer <= 0) {
+      spawnZone();
+      state.zoneTimer = rand(8.0, 11.6) + Math.max(0, 2.0 - state.stage * 0.08);
+    }
+    const shipZone = applyZonePush(ship, 260, dt);
+    if (shipZone && shipZone.zone.kind === 'storm') {
+      ship.vx *= 0.985;
+      ship.vy *= 0.985;
+      state.dangerBlink = Math.max(state.dangerBlink, 0.08);
+    }
+    if (shipZone && !keyboardActive) {
+      ship.x += ship.vx * dt * 0.85;
+      ship.y += ship.vy * dt * 0.85;
+      ship.x = clamp(ship.x, 20, world.w - 20);
+      ship.y = clamp(ship.y, 20, world.h - 20);
+      input.targetX = ship.x;
+      input.targetY = ship.y;
+    }
+    for (const zone of world.zones) {
+      zone.pulse += dt * (1.2 + zone.spin * 0.2);
+      zone.x = clamp(zone.x + zone.driftX * dt, 90, world.w - 90);
+      zone.y = clamp(zone.y + zone.driftY * dt, 90, world.h - 90);
+      zone.driftX += Math.sin(zone.pulse * 0.9) * 1.8 * dt;
+      zone.driftY += Math.cos(zone.pulse * 1.1) * 1.6 * dt;
+    }
+    for (let i = world.zones.length - 1; i >= 0; i--) {
+      const zone = world.zones[i];
+      zone.life -= dt;
+      if (zone.life <= 0) {
+        world.zones.splice(i, 1);
+      }
     }
 
     state.spawnTimer -= dt;
@@ -1076,74 +1260,14 @@
           meteor.vy += Math.sin(dash) * 1.8;
         }
       }
+      const zoneInfluence = applyZonePush(meteor, 180, dt);
+      if (zoneInfluence && zoneInfluence.zone.kind === 'storm') {
+        meteor.vx *= 0.99;
+        meteor.vy *= 0.99;
+      }
       meteor.x += meteor.vx * 60 * dt * slowFactor;
       meteor.y += meteor.vy * 60 * dt * slowFactor;
       meteor.angle += meteor.spin * 60 * dt;
-    }
-
-    for (let i = world.bullets.length - 1; i >= 0; i--) {
-      const bullet = world.bullets[i];
-      bullet.x += bullet.vx * 60 * dt;
-      bullet.y += bullet.vy * 60 * dt;
-      bullet.life -= dt;
-      if (bullet.life <= 0) {
-        world.bullets.splice(i, 1);
-        world.bulletPool.push(bullet);
-        continue;
-      }
-
-      let consumed = false;
-      if (
-        world.boss &&
-        dist(bullet.x, bullet.y, world.boss.x, world.boss.y) < world.boss.radius + bullet.radius
-      ) {
-        telemetry.shotsHit += 1;
-        world.boss.health -= bullet.damage;
-        world.boss.phase += 0.12;
-        world.bullets.splice(i, 1);
-        world.bulletPool.push(bullet);
-        burst(bullet.x, bullet.y, 'rgba(255,214,106,1)', 6, 3.8);
-        playTone(1260, 0.05, 'triangle', 0.03, 880);
-        if (world.boss.health <= 0) {
-          destroyBoss();
-        }
-        consumed = true;
-      }
-
-      if (consumed) continue;
-
-      for (let j = world.meteors.length - 1; j >= 0; j--) {
-        const meteor = world.meteors[j];
-        const hitRadius = meteor.radius + bullet.radius;
-        if (dist(bullet.x, bullet.y, meteor.x, meteor.y) < hitRadius) {
-          telemetry.shotsHit += 1;
-          world.bullets.splice(i, 1);
-          world.bulletPool.push(bullet);
-          burst(
-            meteor.x,
-            meteor.y,
-            meteor.type === 'drone' ? 'rgba(121,215,255,1)' : 'rgba(255,140,155,1)',
-            10,
-            4.2
-          );
-          if (meteor.type === 'drone') {
-            meteor.health -= bullet.damage;
-            if (meteor.health <= 0) {
-              const deadMeteor = world.meteors.splice(j, 1)[0];
-              world.meteorPool.push(deadMeteor);
-              state.scoreValue += 6;
-              state.score = Math.floor(state.scoreValue);
-            }
-          } else {
-            const deadMeteor = world.meteors.splice(j, 1)[0];
-            world.meteorPool.push(deadMeteor);
-            state.scoreValue += 4;
-            state.score = Math.floor(state.scoreValue);
-          }
-          playTone(760, 0.04, 'square', 0.02, 520);
-          break;
-        }
-      }
     }
 
     for (const core of world.cores) {
@@ -1222,12 +1346,13 @@
       if (dist(ship.x, ship.y, core.x, core.y) < ship.radius + core.radius) {
         const coreHit = world.cores.splice(i, 1)[0];
         world.corePool.push(coreHit);
-        const gain = 10 * state.combo * (state.boost > 0 ? 2 : 1);
-        state.scoreValue += gain;
-        state.score = Math.floor(state.scoreValue);
+        const zoneInfluence = getZoneInfluence(ship.x, ship.y);
+        const zoneBoost = zoneInfluence ? zoneInfluence.zone.scoreBoost : 1;
+        const gain = 9 * state.combo * (state.boost > 0 ? 1.8 : 1) * zoneBoost;
+        addScore(gain);
         state.coresCollected += 1;
         state.combo = Math.min(8, state.combo + 1);
-        state.comboTimer = 3.2;
+        state.comboTimer = 3.2 + (zoneInfluence ? 0.6 : 0);
         state.flash = 0.2;
         state.shake = Math.min(8, state.shake + 2.5);
         burst(core.x, core.y, corePalette[core.tint].glow, 18, 5.5);
@@ -1249,14 +1374,38 @@
       world.boss &&
       dist(ship.x, ship.y, world.boss.x, world.boss.y) < ship.radius + world.boss.radius
     ) {
-      if (state.shieldHits > 0) {
+      if (state.dashTime > 0) {
+        const dx = world.boss.x - ship.x;
+        const dy = world.boss.y - ship.y;
+        const len = Math.hypot(dx, dy) || 1;
+        world.boss.vx += (dx / len) * 12;
+        world.boss.vy += (dy / len) * 12;
+        world.boss.health -= 5 + state.stage * 0.45;
+        world.boss.phase += 0.2;
+        addScore(8);
+        state.comboTimer = Math.max(state.comboTimer, 1.2);
+        state.dashTime = Math.min(0.5, state.dashTime + 0.08);
+        state.dashCooldown = Math.max(0.2, state.dashCooldown - 0.2);
+        emitShipFeedback({
+          color: 'rgba(255,214,106,1)',
+          count: 20,
+          speed: 6.4,
+          flash: 0.28,
+          shake: 10,
+        });
+        if (world.boss.health <= 0) {
+          destroyBoss();
+        }
+      } else if (state.shieldHits > 0) {
         state.shieldHits = 0;
         state.shield = 0;
-        state.flash = 0.28;
-        state.shake = 15;
-        burst(ship.x, ship.y, 'rgba(255,214,106,1)', 18, 6.0);
-        addRing(ship.x, ship.y, 'rgba(255,214,106,1)');
-        playEffect('power');
+        emitShipFeedback({
+          color: 'rgba(255,214,106,1)',
+          count: 18,
+          speed: 6.0,
+          flash: 0.28,
+          shake: 15,
+        });
       } else {
         state.lives -= 2;
         telemetry.deathCause = 'boss impact';
@@ -1281,14 +1430,30 @@
       if (dist(ship.x, ship.y, meteor.x, meteor.y) < meteor.radius + ship.radius * 0.9) {
         const meteorHit = world.meteors.splice(i, 1)[0];
         world.meteorPool.push(meteorHit);
-        if (state.shieldHits > 0) {
+        if (state.dashTime > 0) {
+          const dashGain = meteor.type === 'drone' ? 5 : 3;
+          addScore(dashGain * state.combo);
+          state.combo = Math.min(8, state.combo + 1);
+          state.comboTimer = 2.2;
+          state.dashTime = Math.min(0.5, state.dashTime + 0.05);
+          state.dashCooldown = Math.max(0.25, state.dashCooldown - 0.12);
+          emitShipFeedback({
+            color: meteor.type === 'drone' ? 'rgba(121,215,255,1)' : 'rgba(255,140,155,1)',
+            count: 18,
+            speed: 5.8,
+            flash: 0.18,
+            shake: 9,
+          });
+        } else if (state.shieldHits > 0) {
           state.shieldHits = 0;
           state.shield = 0;
-          state.flash = 0.25;
-          state.shake = 12;
-          burst(ship.x, ship.y, 'rgba(140,255,193,1)', 20, 5.8);
-          addRing(ship.x, ship.y, 'rgba(140,255,193,1)');
-          playEffect('power');
+          emitShipFeedback({
+            color: 'rgba(140,255,193,1)',
+            count: 20,
+            speed: 5.8,
+            flash: 0.25,
+            shake: 12,
+          });
         } else {
           state.lives -= 1;
           telemetry.deathCause = meteor.type === 'drone' ? 'drone impact' : 'meteor impact';
@@ -1321,7 +1486,6 @@
         break;
       }
     }
-    state.best = Math.max(state.best, state.score);
     updateHud();
     updateMusic(dt);
   }
@@ -1402,7 +1566,7 @@
   }
 
   function draw() {
-    const time = performance.now() * 0.001;
+    const time = state.visualTime;
     ctx.save();
     if (state.shake > 0) {
       ctx.translate(rand(-state.shake, state.shake), rand(-state.shake, state.shake));
@@ -1419,6 +1583,39 @@
       ctx.shadowBlur = 24;
       ctx.beginPath();
       ctx.arc(ring.x, ring.y, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (const zone of world.zones) {
+      const def = zoneDefs[zone.kind];
+      const pulse = 1 + Math.sin(zone.pulse * 1.6) * 0.04;
+      ctx.save();
+      ctx.translate(zone.x, zone.y);
+      ctx.scale(pulse, pulse);
+      ctx.shadowColor = def.glow;
+      ctx.shadowBlur = 28;
+      ctx.globalAlpha = clamp(zone.life / 12.5, 0.2, 0.95);
+      ctx.fillStyle = def.fill;
+      ctx.beginPath();
+      ctx.arc(0, 0, zone.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = def.accent;
+      ctx.beginPath();
+      ctx.arc(0, 0, zone.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.rotate(zone.pulse * 0.4);
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, zone.radius * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-zone.radius, 0);
+      ctx.lineTo(zone.radius, 0);
+      ctx.moveTo(0, -zone.radius);
+      ctx.lineTo(0, zone.radius);
       ctx.stroke();
       ctx.restore();
     }
@@ -1452,6 +1649,18 @@
       const pulse = 1 + Math.sin(boss.phase * 3) * 0.04;
       ctx.save();
       ctx.translate(boss.x, boss.y);
+      if (boss.cueTimer > 0) {
+        const cuePulse = 1 + (1 - boss.cueTimer / 0.6) * 0.1;
+        ctx.scale(cuePulse, cuePulse);
+        ctx.shadowColor = 'rgba(255,140,155,0.92)';
+        ctx.shadowBlur = 44;
+        ctx.strokeStyle = 'rgba(255,140,155,0.85)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, boss.radius + 18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.rotate(Math.sin(time * 18) * 0.2);
+      }
       ctx.rotate(boss.angle);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = 'rgba(255,214,106,0.8)';
@@ -1492,22 +1701,6 @@
       ctx.lineTo(0, core.radius * 1.5);
       ctx.lineTo(-core.radius, 0);
       ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    for (const bullet of world.bullets) {
-      ctx.save();
-      ctx.globalAlpha = clamp(bullet.life, 0, 1);
-      ctx.shadowColor = 'rgba(121,215,255,0.85)';
-      ctx.shadowBlur = 16;
-      const g = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, 10);
-      g.addColorStop(0, 'rgba(255,255,255,0.98)');
-      g.addColorStop(0.4, 'rgba(121,215,255,0.95)');
-      g.addColorStop(1, 'rgba(121,215,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(bullet.x, bullet.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -1590,9 +1783,28 @@
     ctx.save();
     ctx.translate(ship.x, ship.y);
     const tilt = clamp((ship.vx || 0) / 220, -0.32, 0.32);
-    ctx.rotate(tilt);
+    const heading = Math.atan2(ship.faceDy || -1, ship.faceDx || 0);
+    ctx.rotate(heading + tilt);
 
-    const thrustPulse = 0.72 + Math.sin(performance.now() * 0.028) * 0.24;
+    if (state.dashTime > 0) {
+      ctx.save();
+      ctx.globalAlpha = clamp(state.dashTime / 0.32, 0, 1) * 0.75;
+      ctx.strokeStyle = 'rgba(255,214,106,0.82)';
+      ctx.lineWidth = 4;
+      ctx.shadowColor = 'rgba(255,214,106,0.9)';
+      ctx.shadowBlur = 22;
+      ctx.beginPath();
+      ctx.moveTo(-30, 0);
+      ctx.lineTo(-52, 0);
+      ctx.moveTo(-26, -8);
+      ctx.lineTo(-48, -12);
+      ctx.moveTo(-26, 8);
+      ctx.lineTo(-48, 12);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const thrustPulse = 0.72 + Math.sin(time * 28) * 0.24;
     ctx.shadowColor = 'rgba(255,170,90,0.7)';
     ctx.shadowBlur = 16;
     ctx.fillStyle = `rgba(255,180,110,${0.78 * thrustPulse})`;
@@ -1700,7 +1912,7 @@
       ctx.fillStyle = 'rgba(255,255,255,0.68)';
       ctx.font = '600 18px Segoe UI, sans-serif';
       ctx.fillText(
-        'Collect cores. Trigger powerups. Pilot your spaceship to survive.',
+        'Collect cores, dash through danger, and use pulses to stay alive.',
         world.w * 0.5,
         world.h * 0.88
       );
@@ -1745,12 +1957,12 @@
     const dx = input.targetX - ship.x;
     const dy = input.targetY - ship.y;
     const len = Math.hypot(dx, dy) || 1;
-    ship.aimDx = dx / len;
-    ship.aimDy = dy / len;
+    ship.faceDx = dx / len;
+    ship.faceDy = dy / len;
     input.pointerActive = true;
   }
 
-  function updateVirtualStick(stickEl, knobEl, clientX, clientY, kind) {
+  function updateVirtualStick(stickEl, knobEl, clientX, clientY) {
     const rect = stickEl.getBoundingClientRect();
     const cx = rect.left + rect.width * 0.5;
     const cy = rect.top + rect.height * 0.5;
@@ -1762,35 +1974,21 @@
     const nx = (dx / len) * clamped;
     const ny = (dy / len) * clamped;
     setKnob(knobEl, nx, ny);
-    if (kind === 'move') {
-      input.moveAxisX = nx / maxR;
-      input.moveAxisY = ny / maxR;
-    } else {
-      input.aimAxisX = nx / maxR;
-      input.aimAxisY = ny / maxR;
-    }
+    input.moveAxisX = nx / maxR;
+    input.moveAxisY = ny / maxR;
   }
 
-  function resetVirtualStick(kind) {
-    if (kind === 'move') {
-      input.moveAxisX = 0;
-      input.moveAxisY = 0;
-      setKnob(moveKnob, 0, 0);
-    } else {
-      input.aimAxisX = 0;
-      input.aimAxisY = -1;
-      setKnob(aimKnob, 0, 0);
-    }
+  function resetVirtualStick() {
+    input.moveAxisX = 0;
+    input.moveAxisY = 0;
+    setKnob(moveKnob, 0, 0);
   }
 
   canvas.addEventListener('pointerdown', (event) => {
     resumeAudio();
     canvas.setPointerCapture?.(event.pointerId);
     pointerToTarget(event.clientX, event.clientY);
-    if (state.running && !state.paused) {
-      shootBullet();
-      state.fireTimer = fireInterval();
-    } else if (!state.running && !state.over) {
+    if (!state.running && !state.over) {
       startGame();
     }
   });
@@ -1800,11 +1998,13 @@
     pointerToTarget(event.clientX, event.clientY);
   });
 
-  canvas.addEventListener('pointerup', () => {
+  canvas.addEventListener('pointerup', (event) => {
+    canvas.releasePointerCapture?.(event.pointerId);
     input.pointerActive = false;
   });
 
-  canvas.addEventListener('pointercancel', () => {
+  canvas.addEventListener('pointercancel', (event) => {
+    canvas.releasePointerCapture?.(event.pointerId);
     input.pointerActive = false;
   });
 
@@ -1820,8 +2020,14 @@
 
   window.addEventListener('keydown', (event) => {
     input.keys.add(event.key);
-    if (event.key === ' ') {
-      state.fireHeld = true;
+    if (event.key === ' ' || event.key === 'Shift') {
+      event.preventDefault();
+      if (state.running && !state.paused) {
+        triggerDash();
+      } else if (!state.running && !state.over) {
+        startGame();
+      }
+      return;
     }
     if (event.key === 'p' || event.key === 'P') {
       if (state.running) {
@@ -1835,85 +2041,57 @@
     if (event.key === 'q' || event.key === 'Q') {
       triggerPulse();
     }
-    if ((event.key === ' ' || event.key === 'Enter') && !state.running && !state.over) {
+    if (event.key === 'Enter' && !state.running && !state.over) {
       startGame();
     }
   });
 
   window.addEventListener('keyup', (event) => {
     input.keys.delete(event.key);
-    if (event.key === ' ') {
-      state.fireHeld = false;
-    }
   });
 
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
 
-  fireBtn.addEventListener('pointerdown', (event) => {
+  dashBtn.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     resumeAudio();
     if (!state.running) {
       startGame();
       return;
     }
-    state.fireHeld = true;
-    shootBullet();
-    state.fireTimer = fireInterval();
+    triggerDash();
   });
 
-  fireBtn.addEventListener('pointerup', () => {
-    state.fireHeld = false;
-  });
-
-  fireBtn.addEventListener('pointerleave', () => {
-    state.fireHeld = false;
-  });
-
-  fireBtn.addEventListener('pointercancel', () => {
-    state.fireHeld = false;
-  });
-
-  window.addEventListener('pointerup', () => {
-    state.fireHeld = false;
+  pulseBtn.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    resumeAudio();
+    if (!state.running) {
+      startGame();
+      return;
+    }
+    triggerPulse();
   });
 
   moveStick.addEventListener('pointerdown', (event) => {
     input.movePointerId = event.pointerId;
     moveStick.setPointerCapture?.(event.pointerId);
-    updateVirtualStick(moveStick, moveKnob, event.clientX, event.clientY, 'move');
+    updateVirtualStick(moveStick, moveKnob, event.clientX, event.clientY);
   });
   moveStick.addEventListener('pointermove', (event) => {
     if (input.movePointerId !== event.pointerId) return;
-    updateVirtualStick(moveStick, moveKnob, event.clientX, event.clientY, 'move');
+    updateVirtualStick(moveStick, moveKnob, event.clientX, event.clientY);
   });
   moveStick.addEventListener('pointerup', (event) => {
     if (input.movePointerId !== event.pointerId) return;
+    moveStick.releasePointerCapture?.(event.pointerId);
     input.movePointerId = null;
-    resetVirtualStick('move');
+    resetVirtualStick();
   });
-  moveStick.addEventListener('pointercancel', () => {
+  moveStick.addEventListener('pointercancel', (event) => {
+    moveStick.releasePointerCapture?.(event.pointerId);
     input.movePointerId = null;
-    resetVirtualStick('move');
-  });
-
-  aimStick.addEventListener('pointerdown', (event) => {
-    input.aimPointerId = event.pointerId;
-    aimStick.setPointerCapture?.(event.pointerId);
-    updateVirtualStick(aimStick, aimKnob, event.clientX, event.clientY, 'aim');
-  });
-  aimStick.addEventListener('pointermove', (event) => {
-    if (input.aimPointerId !== event.pointerId) return;
-    updateVirtualStick(aimStick, aimKnob, event.clientX, event.clientY, 'aim');
-  });
-  aimStick.addEventListener('pointerup', (event) => {
-    if (input.aimPointerId !== event.pointerId) return;
-    input.aimPointerId = null;
-    resetVirtualStick('aim');
-  });
-  aimStick.addEventListener('pointercancel', () => {
-    input.aimPointerId = null;
-    resetVirtualStick('aim');
+    resetVirtualStick();
   });
 
   modeButtons.forEach((button) => {
@@ -1932,6 +2110,10 @@
     } else {
       startGame();
     }
+  });
+
+  homeBtn.addEventListener('click', () => {
+    resetGame();
   });
 
   pauseBtn.addEventListener('click', () => {
