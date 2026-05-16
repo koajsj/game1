@@ -25,11 +25,14 @@ body {
     linear-gradient(180deg, var(--bg-2), var(--bg-1));
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--text);
+  overscroll-behavior: none;
 }
 
 #game {
   display: block;
   width: 100vw;
+  height: 100vh;
+  height: 100svh;
   height: 100dvh;
   touch-action: none;
   cursor: crosshair;
@@ -341,6 +344,7 @@ button:active {
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
   z-index: 20;
+  pointer-events: none;
 }
 .stick-wrap {
   width: 102px;
@@ -516,10 +520,12 @@ button:active {
 
   .footer-tip {
     font-size: 12px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    width: calc(100vw - 24px);
   }
 
   .mobile-controls {
-    bottom: calc(92px + env(safe-area-inset-bottom));
+    bottom: calc(104px + env(safe-area-inset-bottom));
   }
   .stick-wrap {
     width: 92px;
@@ -536,16 +542,19 @@ button:active {
   .boss {
     top: calc(220px + env(safe-area-inset-top));
   }
+
+  .perf {
+    display: none;
+  }
 }
 
 @media (max-width: 420px) {
   .brand {
-    max-height: 34vh;
+    max-height: 32svh;
     overflow: auto;
   }
 
   .footer-tip {
-    font-size: 11px;
-    padding: 8px 10px;
+    display: none;
   }
 }
