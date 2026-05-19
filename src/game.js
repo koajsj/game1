@@ -46,10 +46,41 @@
     runStartedAt: 0,
   };
 
+  function readStorage(key, fallback) {
+    try {
+      return localStorage.getItem(key) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeStorage(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Some embedded/private browser contexts disable storage; gameplay should continue.
+    }
+  }
+
+  function readStoredNumber(key, fallback, min = 0, max = 999999) {
+    const value = Number(readStorage(key, String(fallback)));
+    return Number.isFinite(value) ? clamp(value, min, max) : fallback;
+  }
+
+  const modeLabels = {
+    easy: '轻松',
+    normal: '标准',
+    hard: '困难',
+  };
+  const savedMode = readStorage('starRingMode', 'normal');
+  const initialMode = Object.prototype.hasOwnProperty.call(modeLabels, savedMode)
+    ? savedMode
+    : 'normal';
+
   const meta = {
-    coresBank: Number(localStorage.getItem('starRingCoresBank') || 0),
-    lifeLevel: Number(localStorage.getItem('starRingLifeLevel') || 0),
-    magnetLevel: Number(localStorage.getItem('starRingMagnetLevel') || 0),
+    coresBank: Math.floor(readStoredNumber('starRingCoresBank', 0, 0, 9999)),
+    lifeLevel: Math.floor(readStoredNumber('starRingLifeLevel', 0, 0, 3)),
+    magnetLevel: Math.floor(readStoredNumber('starRingMagnetLevel', 0, 0, 5)),
   };
 
   const state = {
@@ -58,7 +89,7 @@
     over: false,
     scoreValue: 0,
     score: 0,
-    best: Number(localStorage.getItem('starRingBest') || 0),
+    best: Math.floor(readStoredNumber('starRingBest', 0)),
     lives: 3,
     combo: 1,
     comboTimer: 0,
@@ -88,7 +119,7 @@
   };
 
   const settings = {
-    mode: localStorage.getItem('starRingMode') || 'normal',
+    mode: initialMode,
     easy: { lives: 5, stageStep: 150, spawnScale: 0.82, bossStep: 6, scoreScale: 0.92 },
     normal: { lives: 3, stageStep: 120, spawnScale: 1.0, bossStep: 5, scoreScale: 1.0 },
     hard: { lives: 2, stageStep: 95, spawnScale: 1.18, bossStep: 4, scoreScale: 1.08 },
@@ -109,6 +140,9 @@
     fps: 0,
     timer: 0,
     frames: 0,
+    reducedEffects: false,
+    lowFpsTime: 0,
+    highFpsTime: 0,
   };
 
   const world = {
@@ -211,9 +245,9 @@
   }
 
   function saveMeta() {
-    localStorage.setItem('starRingCoresBank', String(meta.coresBank));
-    localStorage.setItem('starRingLifeLevel', String(meta.lifeLevel));
-    localStorage.setItem('starRingMagnetLevel', String(meta.magnetLevel));
+    writeStorage('starRingCoresBank', String(meta.coresBank));
+    writeStorage('starRingLifeLevel', String(meta.lifeLevel));
+    writeStorage('starRingMagnetLevel', String(meta.magnetLevel));
   }
 
   function applyMetaUpgrades() {
@@ -222,9 +256,9 @@
     state.lives = baseLives;
     if (spent > 0) {
       setOverlay(
-        'MISSION BRIEF',
-        'Spend collected cores to improve survivability, dash uptime, and magnet strength between runs.',
-        `Best: ${state.best} | Bank: ${meta.coresBank} | Upgrades L${meta.lifeLevel} M${meta.magnetLevel}`
+        '任务简报',
+        '已用结算核心提升生命和磁吸能力，本局会自动继承局外成长。',
+        `最佳: ${state.best} | 核心库存: ${meta.coresBank} | 成长 L${meta.lifeLevel} / M${meta.magnetLevel}`
       );
     }
   }
@@ -241,6 +275,12 @@
       perf.fps = Math.round(perf.frames / perf.timer);
       const frameTime = (perf.dtAvg * 1000).toFixed(1);
       perfPanel.textContent = `FPS: ${perf.fps} | FT: ${frameTime}ms`;
+      if (state.running && !state.paused) {
+        perf.lowFpsTime = perf.fps < 48 ? perf.lowFpsTime + perf.timer : 0;
+        perf.highFpsTime = perf.fps > 56 ? perf.highFpsTime + perf.timer : 0;
+        if (perf.lowFpsTime > 1.2) perf.reducedEffects = true;
+        if (perf.highFpsTime > 3.0) perf.reducedEffects = false;
+      }
       perf.timer = 0;
       perf.frames = 0;
     }
@@ -252,11 +292,11 @@
     const livesText = String(state.lives);
     const stageText = String(state.stage);
     const comboText = `x${state.combo}`;
-    const shieldText = `Shield: ${state.shieldHits > 0 ? '1' : '0'}`;
-    const magnetText = `Magnet: ${state.magnet > 0 ? state.magnet.toFixed(0) : '0'} (+${meta.magnetLevel})`;
-    const slowText = `Slow: ${state.slow > 0 ? state.slow.toFixed(0) : '0'}`;
-    const boostText = `Boost: ${state.boost > 0 ? state.boost.toFixed(0) : '0'}`;
-    const dashText = `Dash: ${state.dashCooldown > 0 ? state.dashCooldown.toFixed(1) : 'Ready'}`;
+    const shieldText = `护盾: ${state.shieldHits > 0 ? '可用' : '0'}`;
+    const magnetText = `磁吸: ${state.magnet > 0 ? state.magnet.toFixed(0) : '0'} (+${meta.magnetLevel})`;
+    const slowText = `减速: ${state.slow > 0 ? state.slow.toFixed(0) : '0'}`;
+    const boostText = `加速: ${state.boost > 0 ? state.boost.toFixed(0) : '0'}`;
+    const dashText = `冲刺: ${state.dashCooldown > 0 ? `${state.dashCooldown.toFixed(1)}s` : '就绪'}`;
 
     if (hudState.score !== scoreText) {
       scoreEl.textContent = scoreText;
@@ -298,6 +338,7 @@
       buffDash.textContent = dashText;
       hudState.dash = dashText;
     }
+    updateControlButtons();
 
     if (world.boss) {
       const bossText = `${Math.max(0, Math.ceil(world.boss.health))} / ${world.boss.maxHealth}`;
@@ -335,6 +376,31 @@
     overlaySummary.textContent = summary;
   }
 
+  function modeLabel(mode = settings.mode) {
+    return modeLabels[mode] || modeLabels.normal;
+  }
+
+  function deathCauseLabel(cause) {
+    const labels = {
+      none: '未知',
+      'boss impact': 'Boss 撞击',
+      'meteor impact': '陨石撞击',
+      'drone impact': '无人机撞击',
+    };
+    return labels[cause] || cause;
+  }
+
+  function updateControlButtons() {
+    const activeRun = state.running && !state.paused && !state.over;
+    const pausedRun = state.running && state.paused;
+    dashBtn.disabled = pausedRun || (activeRun && state.dashCooldown > 0);
+    pulseBtn.disabled = pausedRun || (activeRun && state.pulseCooldown > 0);
+    dashBtn.textContent =
+      activeRun && state.dashCooldown > 0 ? `${state.dashCooldown.toFixed(1)}s` : '冲刺';
+    pulseBtn.textContent =
+      activeRun && state.pulseCooldown > 0 ? `${state.pulseCooldown.toFixed(1)}s` : '脉冲';
+  }
+
   function modeConfig() {
     return settings[settings.mode] || settings.normal;
   }
@@ -348,13 +414,13 @@
   function applyMode(mode) {
     if (!settings[mode]) return;
     settings.mode = mode;
-    localStorage.setItem('starRingMode', mode);
+    writeStorage('starRingMode', mode);
     refreshModeButtons();
     if (!state.running) {
       setOverlay(
-        'MISSION BRIEF',
-        'Start the ship, collect cores, dodge hazards, dash through danger, and use powerups to survive longer.',
-        `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${mode.toUpperCase()}`
+        '任务简报',
+        '启动飞船，收集核心，利用冲刺穿过危险并靠补给延长生存时间。',
+        `最佳得分: ${state.best} | 关卡: 1 | 已收集核心: 0 | 难度: ${modeLabel(mode)}`
       );
     }
   }
@@ -469,7 +535,31 @@
     }
   }
 
+  function syncStarField(previousWidth, previousHeight) {
+    const targetStars = Math.round(clamp((world.w * world.h) / 6500, 90, 180));
+    const scaleX = previousWidth > 0 ? world.w / previousWidth : 1;
+    const scaleY = previousHeight > 0 ? world.h / previousHeight : 1;
+
+    for (const star of world.stars) {
+      star.x = clamp(star.x * scaleX, 0, world.w);
+      star.y = clamp(star.y * scaleY, 0, world.h);
+    }
+    while (world.stars.length > targetStars) {
+      world.stars.pop();
+    }
+    while (world.stars.length < targetStars) {
+      world.stars.push({
+        x: Math.random() * world.w,
+        y: Math.random() * world.h,
+        z: rand(0.25, 1),
+        twinkle: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
   function resize() {
+    const previousWidth = world.w;
+    const previousHeight = world.h;
     world.dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
     world.w = Math.round(window.visualViewport?.width || window.innerWidth);
     world.h = Math.round(window.visualViewport?.height || window.innerHeight);
@@ -491,16 +581,7 @@
       ship.y = clamp(ship.y, 24, world.h - 24);
     }
 
-    if (world.stars.length === 0) {
-      for (let i = 0; i < 140; i++) {
-        world.stars.push({
-          x: Math.random() * world.w,
-          y: Math.random() * world.h,
-          z: rand(0.25, 1),
-          twinkle: Math.random() * Math.PI * 2,
-        });
-      }
-    }
+    syncStarField(previousWidth, previousHeight);
   }
 
   function resetGame() {
@@ -557,12 +638,12 @@
     overlay.classList.remove('hidden');
     setHomeButtonVisible(false);
     setOverlay(
-      'MISSION BRIEF',
-      'Start the ship, collect cores, dodge hazards, dash through danger, and use powerups to survive longer.',
-      `Best score: ${state.best} | Stage: 1 | Cores collected: 0 | Mode: ${settings.mode.toUpperCase()}`
+      '任务简报',
+      '启动飞船，收集核心，利用冲刺穿过危险并靠补给延长生存时间。',
+      `最佳得分: ${state.best} | 关卡: 1 | 已收集核心: 0 | 难度: ${modeLabel()}`
     );
-    startBtn.textContent = 'Start Game';
-    pauseBtn.textContent = 'Pause';
+    startBtn.textContent = '开始游戏';
+    pauseBtn.textContent = '暂停';
     pauseBtn.disabled = true;
     bossPanel.classList.remove('visible');
     bossValue.textContent = '0 / 0';
@@ -660,7 +741,7 @@
     state.hitVignette = 0;
     state.dangerBlink = 0;
     syncScore();
-    localStorage.setItem('starRingBest', String(state.best));
+    writeStorage('starRingBest', String(state.best));
     const runSeconds = Math.max(1, Math.floor((performance.now() - telemetry.runStartedAt) / 1000));
     const runBank = Math.floor(state.coresCollected * 0.8 + state.stage * 1.5 + runSeconds / 20);
     meta.coresBank += runBank;
@@ -677,18 +758,19 @@
     overlay.classList.remove('hidden');
     setHomeButtonVisible(true);
     setOverlay(
-      'MISSION FAILED',
-      'The ship was overwhelmed. Restart to try a different route through the field and beat the stage record.',
-      `Score: ${state.score} | Stage: ${state.stage} | Cores: +${runBank} (Bank ${meta.coresBank}) | Cause: ${telemetry.deathCause}`
+      '任务失败',
+      '飞船已被危险压制。重开后可以换一条路线穿越星域，继续冲击更高关卡。',
+      `得分: ${state.score} | 关卡: ${state.stage} | 核心: +${runBank} (库存 ${meta.coresBank}) | 原因: ${deathCauseLabel(telemetry.deathCause)}`
     );
-    startBtn.textContent = 'Restart';
+    startBtn.textContent = '重新开始';
     pauseBtn.disabled = true;
     playEffect('gameover');
     updateHud();
   }
 
   function burst(x, y, color, count, speed) {
-    for (let i = 0; i < count; i++) {
+    const particleCount = perf.reducedEffects ? Math.ceil(count * 0.56) : count;
+    for (let i = 0; i < particleCount; i++) {
       const angle = Math.random() * Math.PI * 2;
       const velocity = rand(speed * 0.35, speed);
       const p = acquire(world.particlePool);
@@ -869,7 +951,7 @@
     const margin = 180;
     const boss = {
       type: 'boss',
-      name: `Sentinel ${state.stage}`,
+      name: `哨卫 ${state.stage}`,
       x:
         edge === 0
           ? world.w * 0.5
@@ -1020,17 +1102,18 @@
     if (paused) {
       overlay.classList.remove('hidden');
       setOverlay(
-        'PAUSED',
-        'The game is paused. Press continue or hit P again to resume.',
-        `Score: ${state.score} | Stage: ${state.stage} | Cores collected: ${state.coresCollected} | Mode: ${settings.mode.toUpperCase()}`
+        '已暂停',
+        '游戏已暂停。点击继续或再次按 P 可恢复当前进度。',
+        `得分: ${state.score} | 关卡: ${state.stage} | 已收集核心: ${state.coresCollected} | 难度: ${modeLabel()}`
       );
-      startBtn.textContent = 'Continue';
-      pauseBtn.textContent = 'Continue';
+      startBtn.textContent = '继续';
+      pauseBtn.textContent = '继续';
     } else {
       overlay.classList.add('hidden');
-      startBtn.textContent = 'Start Game';
-      pauseBtn.textContent = 'Pause';
+      startBtn.textContent = '开始游戏';
+      pauseBtn.textContent = '暂停';
     }
+    updateControlButtons();
   }
 
   function handleKeyboardMovement(dt) {
@@ -1472,7 +1555,9 @@
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, world.w, world.h);
 
-    for (const star of world.stars) {
+    const starStep = perf.reducedEffects ? 2 : 1;
+    for (let i = 0; i < world.stars.length; i += starStep) {
+      const star = world.stars[i];
       star.twinkle += 0.02 + star.z * 0.02;
       const x = (star.x + time * (6 + star.z * 18)) % world.w;
       const y = star.y + Math.sin(star.twinkle) * 0.9;
@@ -1497,18 +1582,20 @@
     ctx.fillStyle = nebulaA;
     ctx.fillRect(0, 0, world.w, world.h);
 
-    const nebulaB = ctx.createRadialGradient(
-      world.w * 0.82 + Math.cos(time * 0.08) * 45,
-      world.h * 0.65,
-      12,
-      world.w * 0.82,
-      world.h * 0.65,
-      world.w * 0.44
-    );
-    nebulaB.addColorStop(0, 'rgba(90,255,198,0.12)');
-    nebulaB.addColorStop(1, 'rgba(90,255,198,0)');
-    ctx.fillStyle = nebulaB;
-    ctx.fillRect(0, 0, world.w, world.h);
+    if (!perf.reducedEffects) {
+      const nebulaB = ctx.createRadialGradient(
+        world.w * 0.82 + Math.cos(time * 0.08) * 45,
+        world.h * 0.65,
+        12,
+        world.w * 0.82,
+        world.h * 0.65,
+        world.w * 0.44
+      );
+      nebulaB.addColorStop(0, 'rgba(90,255,198,0.12)');
+      nebulaB.addColorStop(1, 'rgba(90,255,198,0)');
+      ctx.fillStyle = nebulaB;
+      ctx.fillRect(0, 0, world.w, world.h);
+    }
 
     ctx.strokeStyle = 'rgba(127, 217, 255, 0.08)';
     ctx.lineWidth = 1;
@@ -1540,7 +1627,7 @@
       ctx.translate(zone.x, zone.y);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = def.glow;
-      ctx.shadowBlur = 28;
+      ctx.shadowBlur = perf.reducedEffects ? 10 : 28;
       ctx.globalAlpha = clamp(zone.life / 12.5, 0.2, 0.95);
       ctx.fillStyle = def.fill;
       ctx.beginPath();
@@ -1574,7 +1661,7 @@
       ctx.rotate(powerup.angle);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = def.glow;
-      ctx.shadowBlur = 26;
+      ctx.shadowBlur = perf.reducedEffects ? 8 : 26;
       ctx.fillStyle = def.fill;
       ctx.beginPath();
       ctx.moveTo(0, -powerup.radius * 1.35);
@@ -1599,7 +1686,7 @@
         const cuePulse = 1 + (1 - boss.cueTimer / 0.6) * 0.1;
         ctx.scale(cuePulse, cuePulse);
         ctx.shadowColor = 'rgba(255,140,155,0.92)';
-        ctx.shadowBlur = 44;
+        ctx.shadowBlur = perf.reducedEffects ? 14 : 44;
         ctx.strokeStyle = 'rgba(255,140,155,0.85)';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -1610,7 +1697,7 @@
       ctx.rotate(boss.angle);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = 'rgba(255,214,106,0.8)';
-      ctx.shadowBlur = 40;
+      ctx.shadowBlur = perf.reducedEffects ? 12 : 40;
       const body = ctx.createRadialGradient(0, 0, 12, 0, 0, boss.radius + 20);
       body.addColorStop(0, 'rgba(255,214,106,0.95)');
       body.addColorStop(0.45, 'rgba(121,215,255,0.88)');
@@ -1639,7 +1726,7 @@
       ctx.translate(core.x, core.y);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = corePalette[core.tint].glow;
-      ctx.shadowBlur = 24;
+      ctx.shadowBlur = perf.reducedEffects ? 8 : 24;
       ctx.fillStyle = corePalette[core.tint].fill;
       ctx.beginPath();
       ctx.moveTo(0, -core.radius * 1.5);
@@ -1656,7 +1743,7 @@
       ctx.translate(meteor.x, meteor.y);
       ctx.rotate(meteor.angle);
       ctx.shadowColor = meteor.hue === 16 ? 'rgba(255,120,120,0.8)' : 'rgba(120,190,255,0.8)';
-      ctx.shadowBlur = 24;
+      ctx.shadowBlur = perf.reducedEffects ? 8 : 24;
       const body = ctx.createLinearGradient(
         -meteor.radius,
         -meteor.radius,
@@ -1719,7 +1806,7 @@
       ctx.globalAlpha = clamp(p.life, 0, 1);
       ctx.fillStyle = p.color;
       ctx.shadowColor = p.color;
-      ctx.shadowBlur = 16;
+      ctx.shadowBlur = perf.reducedEffects ? 0 : 16;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
@@ -1738,7 +1825,7 @@
       ctx.strokeStyle = 'rgba(255,214,106,0.82)';
       ctx.lineWidth = 4;
       ctx.shadowColor = 'rgba(255,214,106,0.9)';
-      ctx.shadowBlur = 22;
+      ctx.shadowBlur = perf.reducedEffects ? 8 : 22;
       ctx.beginPath();
       ctx.moveTo(-30, 0);
       ctx.lineTo(-52, 0);
@@ -1752,7 +1839,7 @@
 
     const thrustPulse = 0.72 + Math.sin(time * 28) * 0.24;
     ctx.shadowColor = 'rgba(255,170,90,0.7)';
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = perf.reducedEffects ? 6 : 16;
     ctx.fillStyle = `rgba(255,180,110,${0.78 * thrustPulse})`;
     ctx.beginPath();
     ctx.roundRect(-28, -7, 14, 5, 3);
@@ -1760,7 +1847,7 @@
     ctx.fill();
 
     ctx.shadowColor = 'rgba(120,220,255,0.85)';
-    ctx.shadowBlur = 30;
+    ctx.shadowBlur = perf.reducedEffects ? 10 : 30;
     const fuselage = ctx.createLinearGradient(-22, -14, 28, 14);
     fuselage.addColorStop(0, '#7ce9ff');
     fuselage.addColorStop(0.45, '#87b8ff');
@@ -1869,7 +1956,7 @@
       ctx.textAlign = 'center';
       ctx.fillStyle = 'rgba(255,105,120,0.95)';
       ctx.font = '800 30px Segoe UI, sans-serif';
-      ctx.fillText('DANGER', world.w * 0.5, world.h * 0.22);
+      ctx.fillText('危险', world.w * 0.5, world.h * 0.22);
       ctx.restore();
     }
 
@@ -1894,6 +1981,17 @@
     }
     draw();
     requestAnimationFrame(loop);
+  }
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      if (state.running && !state.paused) {
+        setPaused(true);
+      }
+      return;
+    }
+    last = performance.now();
+    accumulator = 0;
   }
 
   function pointerToTarget(clientX, clientY) {
@@ -1998,6 +2096,7 @@
 
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   dashBtn.addEventListener('pointerdown', (event) => {
     event.preventDefault();

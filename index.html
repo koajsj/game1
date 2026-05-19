@@ -1,10 +1,10 @@
 ﻿<!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>Star Ring: Neon Surge</title>
     <link rel="stylesheet" href="./src/style.css" />
@@ -17,11 +17,11 @@
           <h1>Star Ring: Neon Surge</h1>
           <p>驾驶宇宙飞船穿越星域，收集核心得分，闪避危险并冲击更高关卡。</p>
           <div class="buffs" id="buffs">
-            <span class="buff" id="buffShield">Shield: 0</span>
-            <span class="buff" id="buffMagnet">Magnet: 0</span>
-            <span class="buff" id="buffSlow">Slow: 0</span>
-            <span class="buff" id="buffBoost">Boost: 0</span>
-            <span class="buff" id="buffDash">Dash: Ready</span>
+            <span class="buff" id="buffShield">护盾: 0</span>
+            <span class="buff" id="buffMagnet">磁吸: 0</span>
+            <span class="buff" id="buffSlow">减速: 0</span>
+            <span class="buff" id="buffBoost">加速: 0</span>
+            <span class="buff" id="buffDash">冲刺: 就绪</span>
           </div>
           <div class="guide">
             <div><b>移动</b> 鼠标/触摸拖动或 WASD/方向键；点击只设定目标，不会攻击。</div>
@@ -39,45 +39,45 @@
         </div>
         <div class="stats card" aria-live="polite">
           <div class="stat">
-            <span class="label">Score</span><span class="value" id="score">0</span>
+            <span class="label">得分</span><span class="value" id="score">0</span>
           </div>
           <div class="stat">
-            <span class="label">Best</span><span class="value" id="best">0</span>
+            <span class="label">最佳</span><span class="value" id="best">0</span>
           </div>
           <div class="stat">
-            <span class="label">Lives</span><span class="value" id="lives">3</span>
+            <span class="label">生命</span><span class="value" id="lives">3</span>
           </div>
           <div class="stat">
-            <span class="label">Stage</span><span class="value" id="stage">1</span>
+            <span class="label">关卡</span><span class="value" id="stage">1</span>
           </div>
           <div class="stat">
-            <span class="label">Combo</span><span class="value" id="combo">x1</span>
+            <span class="label">连击</span><span class="value" id="combo">x1</span>
           </div>
         </div>
       </div>
 
       <div class="boss card" id="bossPanel">
         <div class="boss-head">
-          <div class="boss-name" id="bossName">BOSS DETECTED</div>
+          <div class="boss-name" id="bossName">BOSS 接近</div>
           <div class="boss-value" id="bossValue">0 / 0</div>
         </div>
         <div class="boss-track"><div class="boss-fill" id="bossFill"></div></div>
       </div>
 
       <div class="center card" id="overlay">
-        <h2 class="title" id="overlayTitle">MISSION BRIEF</h2>
+        <h2 class="title" id="overlayTitle">任务简报</h2>
         <p class="subtitle" id="overlayText">
           点击开始后，驾驶飞船移动、闪避和清障。收集核心、穿越危险区并利用技能提升生存能力。
         </p>
-        <p class="summary" id="overlaySummary">Best score: 0 | Stage: 1 | Cores collected: 0</p>
+        <p class="summary" id="overlaySummary">最佳得分: 0 | 关卡: 1 | 已收集核心: 0</p>
         <div class="mode-row" id="modeRow">
-          <button class="secondary mode-btn" data-mode="easy">Easy</button>
-          <button class="secondary mode-btn active" data-mode="normal">Normal</button>
-          <button class="secondary mode-btn" data-mode="hard">Hard</button>
+          <button class="secondary mode-btn" data-mode="easy">轻松</button>
+          <button class="secondary mode-btn active" data-mode="normal">标准</button>
+          <button class="secondary mode-btn" data-mode="hard">困难</button>
         </div>
         <div class="buttons">
-          <button id="startBtn">Start Game</button>
-          <button class="secondary" id="pauseBtn" disabled>Pause</button>
+          <button id="startBtn">开始游戏</button>
+          <button class="secondary" id="pauseBtn" disabled>暂停</button>
           <button class="secondary ui-hidden" id="homeBtn">返回主页</button>
         </div>
       </div>
@@ -94,8 +94,8 @@
         <div class="stick-knob" id="moveKnob"></div>
       </div>
       <div class="action-stack">
-        <button class="dash-btn" id="dashBtn">DASH</button>
-        <button class="pulse-btn" id="pulseBtn">PULSE</button>
+        <button class="dash-btn" id="dashBtn" aria-label="冲刺">冲刺</button>
+        <button class="pulse-btn" id="pulseBtn" aria-label="脉冲清障">脉冲</button>
       </div>
     </div>
 
